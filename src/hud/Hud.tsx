@@ -14,11 +14,13 @@ export function Hud() {
   const parallax = useParallax();
 
   const toggleMode = () => {
-    arStore.setState({ hudMode: hudMode === 'COLOR' ? 'IR' : 'COLOR' });
+    const newMode = hudMode === 'COLOR' ? 'IR' : 'COLOR';
+    arStore.setState({ hudMode: newMode });
+    // Optionally, if you want to ensure data-mode is always in sync, you can trigger a re-render or effect in App
   };
 
   return (
-    <div className="hud-container">
+    <div className="hud-container" style={{ background: 'transparent', pointerEvents: 'none' }}>
       <div className="hud-scanlines" />
 
       <div className="hud-shell">
@@ -50,11 +52,11 @@ export function Hud() {
 
         {/* Layer 3: Controls & CTA (Fastest) */}
         <div
-          className="hud-layer"
+          className="hud-layer hud-interactive"
           style={{
             transform: `translate(${parallax.x * HUD_TOKENS.shared.parallax.controls * 10}px, ${
               parallax.y * HUD_TOKENS.shared.parallax.controls * 10
-            }px)`,
+            }px)`
           }}
         >
           <GatewayAction />
@@ -62,13 +64,13 @@ export function Hud() {
           {/* Mode Switcher Floating Button */}
           <button
             onClick={toggleMode}
-            className="hud-badge pointer-events-auto"
+            className="hud-badge"
             style={{
               position: 'absolute',
               top: '120px',
               right: '20px',
               cursor: 'pointer',
-              border: '1px solid var(--hud-accent)',
+              border: '1px solid var(--hud-accent)'
             }}
           >
             {hudMode} MODE

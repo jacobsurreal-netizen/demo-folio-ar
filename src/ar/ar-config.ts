@@ -27,7 +27,7 @@ export const ARTIFACT_CONFIG = {
   /** Path to the artifact GLB (served from public/) */
   modelPath: '/models/artifact.glb',
   /** Uniform scale applied to the loaded model */
-  scale: 0.5,
+  scale: 0.35,
   /** Position offset relative to marker anchor */
   position: { x: 0, y: 0.3, z: 0 } as const,
   /** Y-axis rotation speed (radians per frame) */

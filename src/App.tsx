@@ -17,10 +17,17 @@ export function App() {
   return (
     <div className="app-root" data-mode={hudMode}>
       {/* ── AR Scene Layer ── */}
-      <ARProvider />
+      <div style={{ position: 'absolute', inset: 0, zIndex: 'var(--z-ar-canvas)' }}>
+        <ARProvider />
+      </div>
+
+      {/* ── IR/COLOR camera diffuser layer (visual-only, below HUD) ── */}
+      <div className="ar-mode-filter" aria-hidden="true" />
 
       {/* ── HUD Overlay Layer ── */}
-      <Hud />
+      <div style={{ position: 'absolute', inset: 0, zIndex: 'var(--z-hud-interactive)', pointerEvents: 'none' }}>
+        <Hud />
+      </div>
     </div>
   );
 }
