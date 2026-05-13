@@ -14,9 +14,19 @@
   align-items: center;
   justify-content: center;
   pointer-events: none;
-  z-index: var(--z-hud);
+  z-index: var(--z-hud-interactive);
   font-family: var(--font-mono);
   overflow: hidden;
+}
+.hud-interactive {
+  pointer-events: none;
+}
+
+.hud-interactive button,
+.hud-interactive a,
+.hud-interactive .gateway-button,
+.hud-interactive .hud-badge {
+  pointer-events: auto;
 }
 
 .hud-shell {
@@ -94,18 +104,32 @@
 /* ── Center Reticle ── */
 .hud-center {
   position: absolute;
-  inset: 0;
-  display: flex;
-  items-center: center;
-  justify-content: center;
-}
-
-.reticle-container {
-  width: 240px;
-  height: 240px;
+  top: 50%;
+  left: 50%;
+  right: auto;
+  bottom: auto;
+  width: min(70vw, 280px);
+  height: min(70vw, 280px);
   display: flex;
   align-items: center;
   justify-content: center;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.reticle-container {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform-origin: center center;
+}
+
+.reticle-container svg {
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
 /* ── Bottom Bar ── */
