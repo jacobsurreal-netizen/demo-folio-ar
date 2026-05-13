@@ -1,0 +1,96 @@
+/**
+ * SURREAL EXP LAB // DEMO V1
+ * Global styles — viewport reset, CSS custom properties, typography.
+ *
+ * This file is the foundation layer. Component styles import nothing from here;
+ * they consume CSS custom properties set on :root.
+ */
+
+/* ── Google Fonts ── */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+
+/* ── Reset + Viewport Lock ── */
+*,
+*::before,
+*::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100dvh;
+  overflow: hidden;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  background: #000;
+  color: #fff;
+  overscroll-behavior: none;
+}
+
+/* ── CSS Custom Properties ── */
+:root {
+  /* Typography */
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'Cascadia Code', monospace;
+
+  /* Base sizes (HUD specific) */
+  --text-xs: 8px;
+  --text-sm: 9px;
+  --text-base: 10px;
+  --text-lg: 13px;
+
+  /* Z-index layers (strict ordering) */
+  --z-ar-canvas: 0;
+  --z-hud: 100;
+  --z-hud-interactive: 110;
+  --z-overlay: 200;
+  --z-permission-gate: 300;
+
+  /* HUD (defaults to COLOR mode, overridden by data-mode="IR") */
+  --hud-accent: #00f2ff;
+  --hud-accent-dim: rgba(0, 242, 255, 0.4);
+  --hud-accent-glow: rgba(0, 242, 255, 0.12);
+  --hud-accent-micro: rgba(0, 242, 255, 0.06);
+  --hud-bg: rgba(0, 0, 0, 0.55);
+  --hud-text: rgba(255, 255, 255, 0.9);
+  --hud-text-dim: rgba(0, 242, 255, 0.6);
+  --hud-transition: 400ms ease-out;
+}
+
+/* ── IR Mode overrides ── */
+[data-mode='IR'] {
+  --hud-accent: #e63030;
+  --hud-accent-dim: rgba(230, 48, 48, 0.4);
+  --hud-accent-glow: rgba(230, 48, 48, 0.15);
+  --hud-accent-micro: rgba(230, 48, 48, 0.08);
+  --hud-bg: rgba(20, 0, 0, 0.65);
+  --hud-text: rgba(255, 255, 255, 0.9);
+  --hud-text-dim: rgba(230, 48, 48, 0.6);
+}
+
+/* ── Root mount ── */
+#root {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+  font-family: var(--font-sans);
+  font-weight: 400;
+  font-size: var(--text-base);
+  line-height: 1.4;
+  letter-spacing: 0.02em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Utility: monospace labels ── */
+.mono {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
