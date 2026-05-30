@@ -1,12 +1,18 @@
 import { useAppState } from '../hooks/use-app-state';
 import { GATEWAY_URL } from '../ar/ar-config';
 
+const AR_SHUTDOWN_EVENT = 'surreal-ar-shutdown-request';
+const HANDOFF_DELAY_MS = 150;
+
 export function GatewayAction() {
   const { tracking } = useAppState();
   const locked = tracking === 'locked';
 
   const handleOpen = () => {
-    window.open(GATEWAY_URL, '_blank');
+    window.dispatchEvent(new Event(AR_SHUTDOWN_EVENT));
+    window.setTimeout(() => {
+      window.location.assign(GATEWAY_URL);
+    }, HANDOFF_DELAY_MS);
   };
 
   return (

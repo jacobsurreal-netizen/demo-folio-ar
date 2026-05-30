@@ -24,6 +24,8 @@ import { loadArtifact, type ArtifactHandle } from './ar-artifact';
 import { arStore } from '../state/store';
 import { useAppState } from '../hooks/use-app-state';
 
+const AR_SHUTDOWN_EVENT = 'surreal-ar-shutdown-request';
+
 export function ARProvider() {
   const containerRef = useRef<HTMLDivElement>(null);
   const mindarRef = useRef<any>(null);
@@ -35,18 +37,45 @@ export function ARProvider() {
 
   const { arReady } = useAppState();
 
+  const stopMediaStream = useCallback((stream: unknown) => {
+    if (stream instanceof MediaStream) {
+      stream.getTracks().forEach((track) => track.stop());
+    }
+  }, []);
+
   const stopVideoTracks = useCallback((root: HTMLElement | null) => {
     root?.querySelectorAll('video').forEach((video) => {
-      const stream = video.srcObject;
-      if (stream instanceof MediaStream) {
-        stream.getTracks().forEach((track) => track.stop());
-      }
+      stopMediaStream(video.srcObject);
       video.pause();
       video.removeAttribute('src');
       video.srcObject = null;
       video.load();
     });
-  }, []);
+  }, [stopMediaStream]);
+
+  const stopMindARMedia = useCallback((mindar: any) => {
+    const possibleVideos = [
+      mindar?.video,
+      mindar?.inputVideo,
+      mindar?.controller?.video,
+      mindar?.controller?.inputVideo,
+    ];
+
+    possibleVideos.forEach((video) => {
+      if (video instanceof HTMLVideoElement) {
+        stopMediaStream(video.srcObject);
+        video.pause();
+        video.removeAttribute('src');
+        video.srcObject = null;
+        video.load();
+      }
+    });
+  }, [stopMediaStream]);
+
+  const stopAllVideoTracks = useCallback(() => {
+    stopVideoTracks(containerRef.current);
+    stopVideoTracks(document.body);
+  }, [stopVideoTracks]);
 
   const cleanupAR = useCallback(() => {
     arSessionRef.current += 1;
@@ -59,6 +88,7 @@ export function ARProvider() {
     if (mindarRef.current) {
       const renderer = mindarRef.current.renderer;
       renderer?.setAnimationLoop(null);
+      stopMindARMedia(mindarRef.current);
       try {
         mindarRef.current.stop();
       } catch (error) {
@@ -74,12 +104,12 @@ export function ARProvider() {
       artifactHandleRef.current = null;
     }
 
-    stopVideoTracks(containerRef.current);
+    stopAllVideoTracks();
     containerRef.current?.replaceChildren();
     mindarRef.current = null;
     startInFlightRef.current = false;
     arStore.setState({ arReady: false, tracking: 'awaiting', signalStrength: 0, modelLoaded: false });
-  }, [stopVideoTracks]);
+  }, [stopAllVideoTracks, stopMindARMedia]);
 
   const startAR = useCallback(async () => {
     if (!containerRef.current) return;
@@ -216,6 +246,7 @@ export function ARProvider() {
   useEffect(() => {
     const handlePageHide = () => cleanupAR();
     const handleBeforeUnload = () => cleanupAR();
+    const handleShutdownRequest = () => cleanupAR();
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'hidden') {
         cleanupAR();
@@ -231,12 +262,14 @@ export function ARProvider() {
     window.addEventListener('pagehide', handlePageHide);
     window.addEventListener('beforeunload', handleBeforeUnload);
     window.addEventListener('pageshow', handlePageShow);
+    window.addEventListener(AR_SHUTDOWN_EVENT, handleShutdownRequest);
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       window.removeEventListener('pagehide', handlePageHide);
       window.removeEventListener('beforeunload', handleBeforeUnload);
       window.removeEventListener('pageshow', handlePageShow);
+      window.removeEventListener(AR_SHUTDOWN_EVENT, handleShutdownRequest);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       cleanupAR();
     };
