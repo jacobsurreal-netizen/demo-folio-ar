@@ -17,7 +17,7 @@ export function GatewayAction() {
 
       {locked && (
         <button className="gateway-button" onClick={handleOpen}>
-          OPEN WEB GATEWAY
+          OPEN OBSERVATION DECK
         </button>
       )}
 

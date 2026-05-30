@@ -52,7 +52,7 @@ export const MINDAR_CONFIG = {
 
 // ── Gateway ─────────────────────────────────────────────────────
 
-export const GATEWAY_URL = 'https://surreal-xp-lab-folio.vercel.app';
+export const GATEWAY_URL = 'https://surreal-xp-lab-folio.vercel.app/recon';
 
 // ── Lost → Awaiting timeout ─────────────────────────────────────
 
