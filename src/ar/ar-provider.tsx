@@ -29,31 +29,66 @@ export function ARProvider() {
   const mindarRef = useRef<any>(null);
   const artifactHandleRef = useRef<ArtifactHandle | null>(null);
   const lostTimeoutRef = useRef<number | null>(null);
+  const startInFlightRef = useRef(false);
+  const arSessionRef = useRef(0);
   const [initError, setInitError] = useState<string | null>(null);
 
   const { arReady } = useAppState();
 
-  const stopAR = useCallback(() => {
+  const stopVideoTracks = useCallback((root: HTMLElement | null) => {
+    root?.querySelectorAll('video').forEach((video) => {
+      const stream = video.srcObject;
+      if (stream instanceof MediaStream) {
+        stream.getTracks().forEach((track) => track.stop());
+      }
+      video.pause();
+      video.removeAttribute('src');
+      video.srcObject = null;
+      video.load();
+    });
+  }, []);
+
+  const cleanupAR = useCallback(() => {
+    arSessionRef.current += 1;
+
+    if (lostTimeoutRef.current) {
+      clearTimeout(lostTimeoutRef.current);
+      lostTimeoutRef.current = null;
+    }
+
     if (mindarRef.current) {
-      mindarRef.current.stop();
       const renderer = mindarRef.current.renderer;
+      renderer?.setAnimationLoop(null);
+      try {
+        mindarRef.current.stop();
+      } catch (error) {
+        console.warn('[AR] MindAR stop failed during cleanup:', error);
+      }
       if (renderer) {
-        renderer.setAnimationLoop(null);
         renderer.dispose();
       }
     }
+
     if (artifactHandleRef.current) {
       artifactHandleRef.current.dispose();
       artifactHandleRef.current = null;
     }
-    arStore.setState({ arReady: false, tracking: 'awaiting' });
-  }, []);
+
+    stopVideoTracks(containerRef.current);
+    containerRef.current?.replaceChildren();
+    mindarRef.current = null;
+    startInFlightRef.current = false;
+    arStore.setState({ arReady: false, tracking: 'awaiting', signalStrength: 0, modelLoaded: false });
+  }, [stopVideoTracks]);
 
   const startAR = useCallback(async () => {
     if (!containerRef.current) return;
-    if (arReady) return;
+    if (arReady || startInFlightRef.current) return;
 
     try {
+      cleanupAR();
+      startInFlightRef.current = true;
+      const sessionId = arSessionRef.current;
       setInitError(null);
       console.log('[AR] Initializing MindAR with target:', ACTIVE_MARKER);
 
@@ -99,12 +134,28 @@ export function ARProvider() {
       };
 
       // Load the artifact
-      artifactHandleRef.current = await loadArtifact(anchor.group);
+      const artifactHandle = await loadArtifact(anchor.group);
+      if (arSessionRef.current !== sessionId) {
+        artifactHandle.dispose();
+        renderer.dispose();
+        try {
+          mindarThree.stop();
+        } catch {
+          // Instance was already invalidated by page lifecycle cleanup.
+        }
+        return;
+      }
+      artifactHandleRef.current = artifactHandle;
 
       // Start AR
       await mindarThree.start();
+      if (arSessionRef.current !== sessionId) {
+        cleanupAR();
+        return;
+      }
       console.log('[AR] MindAR Started');
       arStore.setState({ arReady: true });
+      startInFlightRef.current = false;
 
       // Render Loop
       renderer.setAnimationLoop(() => {
@@ -120,9 +171,14 @@ export function ARProvider() {
         ? 'Marker target file not found (.mind)'
         : 'Failed to access camera or initialize AR';
       setInitError(msg);
-      stopAR();
+      cleanupAR();
     }
-  }, [arReady, stopAR]);
+  }, [arReady, cleanupAR]);
+
+  const restartAR = useCallback(() => {
+    cleanupAR();
+    void startAR();
+  }, [cleanupAR, startAR]);
 
   // ── Mode Response ──
   // Update scene lighting and artifact materials when hudMode changes.
@@ -156,13 +212,35 @@ export function ARProvider() {
     });
   }, [arStore.getState().hudMode, arReady]);
 
-  // Cleanup on unmount
+  // Browser lifecycle cleanup prevents stale camera streams after tab/app switches.
   useEffect(() => {
-    return () => {
-      stopAR();
-      if (lostTimeoutRef.current) clearTimeout(lostTimeoutRef.current);
+    const handlePageHide = () => cleanupAR();
+    const handleBeforeUnload = () => cleanupAR();
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        cleanupAR();
+      }
     };
-  }, [stopAR]);
+    const handlePageShow = (event: PageTransitionEvent) => {
+      if (event.persisted || document.visibilityState === 'visible') {
+        cleanupAR();
+        setInitError(null);
+      }
+    };
+
+    window.addEventListener('pagehide', handlePageHide);
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('pageshow', handlePageShow);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('pagehide', handlePageHide);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('pageshow', handlePageShow);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      cleanupAR();
+    };
+  }, [cleanupAR]);
 
   return (
     <div className="ar-layer" style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }}>
@@ -214,7 +292,7 @@ export function ARProvider() {
           <h2 className="mono" style={{ color: '#dc2626', marginBottom: '12px' }}>System Error</h2>
           <p style={{ marginBottom: '24px', opacity: 0.8 }}>{initError}</p>
           <button
-            onClick={() => setInitError(null)}
+            onClick={restartAR}
             className="mono"
             style={{
               padding: '12px 24px',
@@ -224,7 +302,7 @@ export function ARProvider() {
               cursor: 'pointer'
             }}
           >
-            Retry
+            Restart Scanner
           </button>
         </div>
       )}
