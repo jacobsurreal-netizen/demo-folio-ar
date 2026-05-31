@@ -5,10 +5,10 @@ export function Reticle() {
   const locked = tracking === 'locked';
 
   return (
-    <div className="reticle-container">
+    <div className={`reticle-container reticle-state-${tracking}`}>
       <svg viewBox="0 0 300 300" className="w-full h-full">
         {/* Outer segmented ring */}
-        <g className={locked ? '' : 'pulse'}>
+        <g className="reticle-ring">
           {Array.from({ length: 24 }).map((_, i) => {
             const angle = (i * 360) / 24;
             const r = 120;

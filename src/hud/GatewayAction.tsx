@@ -22,7 +22,7 @@ export function GatewayAction() {
       </div>
 
       {locked && (
-        <button className="gateway-button" onClick={handleOpen}>
+        <button className="gateway-button gateway-button--active" onClick={handleOpen}>
           OPEN OBSERVATION DECK
         </button>
       )}

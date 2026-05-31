@@ -1,7 +1,7 @@
 /**
  * SURREAL EXP LAB // DEMO V1
  * HUD styles — visual identity extracted from reference archive.
- * 
+ *
  * Cinematic, restrained, tactical research aesthetic.
  * Mobile-first, responsive, lightweight.
  */
@@ -18,6 +18,7 @@
   font-family: var(--font-mono);
   overflow: hidden;
 }
+
 .hud-interactive {
   pointer-events: none;
 }
@@ -81,6 +82,7 @@
     rgba(0, 0, 0, 0.07) 3px,
     rgba(0, 0, 0, 0.07) 4px
   );
+  animation: hudFlicker 9s ease-in-out infinite;
 }
 
 /* ── Top Bar ── */
@@ -132,6 +134,27 @@
   display: block;
 }
 
+/* ── Reticle tracking state animations ── */
+
+/* awaiting: slow steady breathe, system is scanning */
+.reticle-state-awaiting svg {
+  animation: reticleScan 3.2s ease-in-out infinite;
+}
+
+/* locked: one-shot snap pop, then ring enters slow idle pulse */
+.reticle-state-locked svg {
+  animation: reticleLockSnap 0.35s ease-out forwards;
+}
+.reticle-state-locked .reticle-ring {
+  animation: reticleLockRing 2.8s ease-in-out infinite;
+  animation-delay: 0.35s;
+}
+
+/* lost: dim irregular flutter — system is searching, not failed */
+.reticle-state-lost svg {
+  animation: reticleLost 2s ease-in-out infinite;
+}
+
 /* ── Bottom Bar ── */
 .hud-bottom-bar {
   position: absolute;
@@ -162,11 +185,16 @@
   letter-spacing: 0.2em;
   cursor: pointer;
   pointer-events: auto;
-  transition: all 0.2s ease;
+  transition: background 0.2s ease, opacity 0.2s ease;
 }
 
 .gateway-button:hover {
   background: var(--hud-accent-dim);
+}
+
+/* active state: gentle breath on opacity only — GPU composited, mobile safe */
+.gateway-button--active {
+  animation: gatewayPulse 2.5s ease-in-out infinite;
 }
 
 /* ── IR Mode Specifics ── */
@@ -179,11 +207,69 @@
 }
 
 /* ── Animations ── */
+
+/* Legacy pulse — kept for compatibility */
 @keyframes pulse {
   0%, 100% { opacity: 0.6; }
-  50% { opacity: 0.9; }
+  50%       { opacity: 0.9; }
 }
-
 .pulse {
   animation: pulse 2s infinite ease-in-out;
+}
+
+/* Reticle awaiting: slow opacity breathe, signals active scanning */
+@keyframes reticleScan {
+  0%, 100% { opacity: 0.85; }
+  50%       { opacity: 1;    }
+}
+
+/* Reticle lock: single snap-pop on marker acquisition */
+@keyframes reticleLockSnap {
+  0%   { transform: scale(1.0);  opacity: 0.7;  }
+  25%  { transform: scale(1.04); opacity: 1;    }
+  65%  { transform: scale(0.99); opacity: 0.95; }
+  100% { transform: scale(1.0);  opacity: 1;    }
+}
+
+/* Reticle ring idle after lock: slow confident pulse */
+@keyframes reticleLockRing {
+  0%, 100% { opacity: 1;    }
+  50%       { opacity: 0.78; }
+}
+
+/* Reticle lost: dim flutter, system realigning — stays readable */
+@keyframes reticleLost {
+  0%, 100% { opacity: 0.55; }
+  30%       { opacity: 0.45; }
+  31%       { opacity: 0.52; }
+  65%       { opacity: 0.42; }
+  66%       { opacity: 0.50; }
+}
+
+/* Gateway CTA active: breath on opacity only */
+@keyframes gatewayPulse {
+  0%, 100% { opacity: 0.82; }
+  50%       { opacity: 1;    }
+}
+
+/* HUD scanlines: very subtle ambient flicker — two micro-dips per cycle */
+@keyframes hudFlicker {
+  0%, 100% { opacity: 1;    }
+  38%       { opacity: 0.96; }
+  39%       { opacity: 1;    }
+  40%       { opacity: 0.93; }
+  41%       { opacity: 1;    }
+  78%       { opacity: 0.97; }
+}
+
+/* ── Accessibility ── */
+@media (prefers-reduced-motion: reduce) {
+  .reticle-state-awaiting svg,
+  .reticle-state-locked svg,
+  .reticle-state-locked .reticle-ring,
+  .reticle-state-lost svg,
+  .gateway-button--active,
+  .hud-scanlines {
+    animation: none;
+  }
 }
