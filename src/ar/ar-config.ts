@@ -27,11 +27,23 @@ export const ARTIFACT_CONFIG = {
   /** Path to the artifact GLB (served from public/) */
   modelPath: '/models/artifact.glb',
   /** Uniform scale applied to the loaded model */
-  scale: 0.35,
+  scale: 0.42,
   /** Position offset relative to marker anchor */
-  position: { x: 0, y: 0.3, z: 0 } as const,
-  /** Y-axis rotation speed (radians per frame) */
-  rotationSpeed: 0.003,
+  position: { x: 0, y: 0.35, z: 0 } as const,
+  /** Y-axis rotation speed (radians per frame) — slow + deliberate */
+  rotationSpeed: 0.0022,
+  /**
+   * Subtle base emissive applied once after load to materials that
+   * support it. Acts as a fallback before the mode-tint runs and as a
+   * self-lit "contains energy" cue. Kept low to avoid a neon look.
+   */
+  emissive: { color: 0x0a3540, intensity: 0.3 },
+  /**
+   * Lightweight fake glow shell (NOT postprocessing/bloom).
+   * A single low-opacity back-side sphere sized from the model bounds.
+   * Adds one cheap transparent draw call, no per-frame work.
+   */
+  glow: { enabled: true, color: 0x00f2ff, opacity: 0.06, scale: 1.25 },
 } as const;
 
 // ── MindAR tracking parameters ──────────────────────────────────
