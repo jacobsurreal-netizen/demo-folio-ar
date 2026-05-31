@@ -36,14 +36,19 @@ export const ARTIFACT_CONFIG = {
 
 // ── MindAR tracking parameters ──────────────────────────────────
 // See: https://hiukim.github.io/mind-ar-js-doc/quick-start/tracking-config
+//
+// PASS 1: Marker Tracking Stability — Jitter Reduction
+// - Increased filterBeta for better responsiveness to fast movement
+// - Slightly raised filterMinCF for smoother tracking without excessive lag
+// - Reduced warmupTolerance for faster lock acquisition
 
 export const MINDAR_CONFIG = {
   /** One-euro filter cutoff frequency (lower = smoother, more latency) */
-  filterMinCF: 0.0001,
+  filterMinCF: 0.0003,
   /** One-euro filter speed coefficient (higher = less delay on fast movement) */
-  filterBeta: 1000,
+  filterBeta: 1500,
   /** Continuous frames required before target-found fires */
-  warmupTolerance: 5,
+  warmupTolerance: 4,
   /** Continuous frames required before target-lost fires */
   missTolerance: 5,
   /** Max simultaneous tracked targets */
