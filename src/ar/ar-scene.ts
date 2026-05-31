@@ -18,7 +18,8 @@ import * as THREE from 'three';
 export function setupScene(scene: THREE.Scene): void {
   // ── Ambient fill ──
   // Soft omnidirectional light so the artifact is always readable.
-  const ambient = new THREE.AmbientLight(0xffffff, 0.7);
+  // Slightly increased for BlackTetrahedron readability
+  const ambient = new THREE.AmbientLight(0xffffff, 0.8);
   scene.add(ambient);
 
   // ── Key light ──
@@ -30,7 +31,8 @@ export function setupScene(scene: THREE.Scene): void {
 
   // ── Fill light ──
   // Very dim counter-light to prevent pure-black faces on the artifact.
-  const fill = new THREE.DirectionalLight(0xccddff, 0.15);
+  // Slightly brighter and warmer for subtle edge lift
+  const fill = new THREE.DirectionalLight(0xdde6ff, 0.19);
   fill.position.set(-1.0, 0.5, -0.5);
   scene.add(fill);
 }
