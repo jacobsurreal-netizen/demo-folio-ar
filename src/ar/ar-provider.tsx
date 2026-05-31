@@ -122,16 +122,19 @@ export function ARProvider() {
       setInitError(null);
       console.log('[AR] Initializing MindAR with target:', ACTIVE_MARKER);
 
-      const mindarThree = new MindARThree({
+      const mindarOptions = {
         container: containerRef.current,
         imageTargetSrc: ACTIVE_MARKER,
         filterMinCF: MINDAR_CONFIG.filterMinCF,
         filterBeta: MINDAR_CONFIG.filterBeta,
         warmupTolerance: MINDAR_CONFIG.warmupTolerance,
         missTolerance: MINDAR_CONFIG.missTolerance,
+        uiScanning: 'no',
         uiLoading: 'no',
         uiError: 'no',
-      });
+      };
+
+      const mindarThree = new MindARThree(mindarOptions);
 
       const { renderer, scene, camera } = mindarThree;
       mindarRef.current = mindarThree;
