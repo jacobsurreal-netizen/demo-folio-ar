@@ -26,12 +26,39 @@ import { useAppState } from '../hooks/use-app-state';
 
 const AR_SHUTDOWN_EVENT = 'surreal-ar-shutdown-request';
 
+const getARInitErrorMessage = (error: unknown) => {
+  const message = error instanceof Error
+    ? error.message
+    : typeof error === 'object' && error && 'message' in error
+      ? String((error as { message?: unknown }).message ?? '')
+      : typeof error === 'string'
+        ? error
+        : '';
+
+  const name = error instanceof DOMException
+    ? error.name
+    : typeof error === 'object' && error && 'name' in error
+      ? String((error as { name?: unknown }).name ?? '')
+      : '';
+
+  if (message.includes('404')) {
+    return 'Marker target file not found (.mind)';
+  }
+
+  if (name === 'NotFoundError' || message.includes('NotFoundError') || message.includes('Requested device not found')) {
+    return 'CAMERA DEVICE NOT FOUND';
+  }
+
+  return 'CAMERA INITIALIZATION FAILED';
+};
+
 export function ARProvider() {
   const containerRef = useRef<HTMLDivElement>(null);
   const mindarRef = useRef<any>(null);
   const artifactHandleRef = useRef<ArtifactHandle | null>(null);
   const lostTimeoutRef = useRef<number | null>(null);
   const startInFlightRef = useRef(false);
+  const mindarStartedRef = useRef(false);
   const arSessionRef = useRef(0);
   const [initError, setInitError] = useState<string | null>(null);
 
@@ -85,16 +112,22 @@ export function ARProvider() {
       lostTimeoutRef.current = null;
     }
 
-    if (mindarRef.current) {
-      const renderer = mindarRef.current.renderer;
+    const mindar = mindarRef.current;
+    const wasStarted = mindarStartedRef.current;
+    mindarStartedRef.current = false;
+
+    if (mindar) {
+      const renderer = mindar.renderer;
       renderer?.setAnimationLoop(null);
-      stopMindARMedia(mindarRef.current);
-      try {
-        mindarRef.current.stop();
-      } catch (error) {
-        console.warn('[AR] MindAR stop failed during cleanup:', error);
+      stopMindARMedia(mindar);
+      if (wasStarted && typeof mindar.stop === 'function') {
+        try {
+          mindar.stop();
+        } catch (error) {
+          console.warn('[AR] MindAR stop failed during cleanup:', error);
+        }
       }
-      if (renderer) {
+      if (renderer && typeof renderer.dispose === 'function') {
         renderer.dispose();
       }
     }
@@ -171,17 +204,13 @@ export function ARProvider() {
       if (arSessionRef.current !== sessionId) {
         artifactHandle.dispose();
         renderer.dispose();
-        try {
-          mindarThree.stop();
-        } catch {
-          // Instance was already invalidated by page lifecycle cleanup.
-        }
         return;
       }
       artifactHandleRef.current = artifactHandle;
 
       // Start AR
       await mindarThree.start();
+      mindarStartedRef.current = true;
       if (arSessionRef.current !== sessionId) {
         cleanupAR();
         return;
@@ -198,12 +227,9 @@ export function ARProvider() {
         renderer.render(scene, camera);
       });
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[AR] Initialization failed:', error);
-      const msg = error.message?.includes('404')
-        ? 'Marker target file not found (.mind)'
-        : 'Failed to access camera or initialize AR';
-      setInitError(msg);
+      setInitError(getARInitErrorMessage(error));
       cleanupAR();
     }
   }, [arReady, cleanupAR]);
