@@ -42,20 +42,20 @@ export const ARTIFACT_CONFIG = {
 // - Slightly raised filterMinCF for smoother tracking without excessive lag
 // - Reduced warmupTolerance for faster lock acquisition
 
-// PASS 1B: Further Jitter Reduction
-// - filterMinCF: 0.0005 (smoother, slightly more latency)
-// - filterBeta: 2000 (maintains responsiveness)
+// PASS 1C: Final Jitter Reduction Test
+// - filterMinCF: 0.0007 (even smoother, still conservative)
+// - filterBeta: 2500 (maintains responsiveness)
 // - warmupTolerance: 4 (unchanged)
-// - missTolerance: 6 (slightly more robust lost detection)
+// - missTolerance: 7 (slightly more robust lost detection)
 export const MINDAR_CONFIG = {
   /** One-euro filter cutoff frequency (lower = smoother, more latency) */
-  filterMinCF: 0.0005,
+  filterMinCF: 0.0007,
   /** One-euro filter speed coefficient (higher = less delay on fast movement) */
-  filterBeta: 2000,
+  filterBeta: 2500,
   /** Continuous frames required before target-found fires */
   warmupTolerance: 4,
   /** Continuous frames required before target-lost fires */
-  missTolerance: 6,
+  missTolerance: 7,
   /** Max simultaneous tracked targets */
   maxTrack: 1,
 } as const;
