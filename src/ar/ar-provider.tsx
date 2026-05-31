@@ -235,7 +235,7 @@ export function ARProvider() {
         materials.forEach((mat: any) => {
           if (mat.emissive) {
             mat.emissive.set(modeColor);
-            mat.emissiveIntensity = arStore.getState().hudMode === 'IR' ? 0.5 : 0.32;
+            mat.emissiveIntensity = arStore.getState().hudMode === 'IR' ? 0.5 : 0.2;
           }
         });
       }

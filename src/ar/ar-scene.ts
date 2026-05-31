@@ -17,22 +17,20 @@ import * as THREE from 'three';
  */
 export function setupScene(scene: THREE.Scene): void {
   // ── Ambient fill ──
-  // Soft omnidirectional light so the artifact stays readable. Lowered
-  // from a flat wash to give the key light more contrast / silhouette.
-  const ambient = new THREE.AmbientLight(0xffffff, 0.5);
+  // Soft omnidirectional light so the artifact is always readable.
+  const ambient = new THREE.AmbientLight(0xffffff, 0.7);
   scene.add(ambient);
 
   // ── Key light ──
-  // Directional light for silhouette definition. Raised slightly for a
-  // stronger read against the camera feed. No shadows — castShadow stays
-  // false (default). (ARProvider may retint this on HUD mode change.)
-  const key = new THREE.DirectionalLight(0xffffff, 0.65);
+  // Subtle directional light for silhouette definition.
+  // No shadows — castShadow stays false (default).
+  const key = new THREE.DirectionalLight(0xffffff, 0.5);
   key.position.set(0.5, 1.5, 1.0);
   scene.add(key);
 
   // ── Fill light ──
-  // Dim counter-light to prevent pure-black faces on the artifact.
-  const fill = new THREE.DirectionalLight(0xccddff, 0.2);
+  // Very dim counter-light to prevent pure-black faces on the artifact.
+  const fill = new THREE.DirectionalLight(0xccddff, 0.15);
   fill.position.set(-1.0, 0.5, -0.5);
   scene.add(fill);
 }
