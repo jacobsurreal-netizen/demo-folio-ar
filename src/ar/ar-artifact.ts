@@ -23,6 +23,69 @@ export interface ArtifactHandle {
   dispose: () => void;
 }
 
+type AuditableMaterial = THREE.Material & {
+  color?: THREE.Color;
+  emissive?: THREE.Color;
+  emissiveIntensity?: number;
+  metalness?: number;
+  roughness?: number;
+};
+
+function formatNumber(value: number | undefined): number | null {
+  return typeof value === 'number' ? Number(value.toFixed(4)) : null;
+}
+
+function formatColor(color: THREE.Color | undefined): string | null {
+  return color ? `#${color.getHexString()}` : null;
+}
+
+function formatBoxSize(box: THREE.Box3): string {
+  const size = box.getSize(new THREE.Vector3());
+  return `${formatNumber(size.x)}, ${formatNumber(size.y)}, ${formatNumber(size.z)}`;
+}
+
+/** DEV-only structure audit for the GLB before any material identity work. */
+function logArtifactStructure(model: THREE.Object3D): void {
+  if (!import.meta.env.DEV) return;
+
+  const rows: Array<Record<string, unknown>> = [];
+
+  model.updateWorldMatrix(true, true);
+  model.traverse((child) => {
+    if (!(child instanceof THREE.Mesh)) return;
+
+    const geometry = child.geometry as THREE.BufferGeometry | undefined;
+    const position = geometry?.attributes.position;
+    const vertexCount = typeof position?.count === 'number' ? position.count : null;
+    const box = new THREE.Box3().setFromObject(child);
+    const materials = Array.isArray(child.material) ? child.material : [child.material];
+
+    materials.forEach((material, materialIndex) => {
+      const mat = material as AuditableMaterial;
+
+      rows.push({
+        meshName: child.name || '(unnamed mesh)',
+        materialIndex,
+        materialName: mat.name || '(unnamed material)',
+        materialType: mat.type,
+        color: formatColor(mat.color),
+        emissive: formatColor(mat.emissive),
+        emissiveIntensity: formatNumber(mat.emissiveIntensity),
+        metalness: formatNumber(mat.metalness),
+        roughness: formatNumber(mat.roughness),
+        transparent: mat.transparent,
+        opacity: formatNumber(mat.opacity),
+        vertexCount,
+        boundingBoxSize: formatBoxSize(box),
+      });
+    });
+  });
+
+  console.groupCollapsed(`[AR] Artifact mesh/material audit (${rows.length} material slot${rows.length === 1 ? '' : 's'})`);
+  console.table(rows);
+  console.groupEnd();
+}
+
 /**
  * Load the artifact GLB and attach it to the provided parent group.
  *
@@ -47,6 +110,8 @@ export async function loadArtifact(parent: THREE.Group): Promise<ArtifactHandle>
         // Position above marker
         const p = ARTIFACT_CONFIG.position;
         model.position.set(p.x, p.y, p.z);
+
+        logArtifactStructure(model);
 
         // Attach to anchor
         parent.add(model);
