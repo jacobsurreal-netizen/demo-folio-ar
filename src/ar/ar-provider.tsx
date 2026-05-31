@@ -20,7 +20,7 @@ import * as THREE from 'three';
 import { MindARThree } from 'mind-ar/dist/mindar-image-three.prod.js';
 import { ACTIVE_MARKER, MINDAR_CONFIG, LOST_TIMEOUT_MS } from './ar-config';
 import { setupScene } from './ar-scene';
-import { loadArtifact, type ArtifactHandle } from './ar-artifact';
+import { ARTIFACT_MESH_TURQUOISE_ORB, loadArtifact, type ArtifactHandle } from './ar-artifact';
 import { arStore } from '../state/store';
 import { useAppState } from '../hooks/use-app-state';
 
@@ -256,18 +256,19 @@ export function ARProvider() {
       }
     });
 
-    // 2. Artifact Tint (Traverse anchor groups)
-    // We only apply a subtle emissive tint to preserve the original material integrity.
+    // 2. TurquoiseOrb emissive tint only — BlackTetrahedron stays untouched.
+    const orbBaseIntensity = arStore.getState().hudMode === 'IR' ? 0.5 : 0.38;
     scene.traverse((obj: any) => {
-      if (obj.isMesh && obj.material) {
-        const materials = Array.isArray(obj.material) ? obj.material : [obj.material];
-        materials.forEach((mat: any) => {
-          if (mat.emissive) {
-            mat.emissive.set(modeColor);
-            mat.emissiveIntensity = arStore.getState().hudMode === 'IR' ? 0.5 : 0.2;
-          }
-        });
-      }
+      if (!obj.isMesh || obj.name !== ARTIFACT_MESH_TURQUOISE_ORB || !obj.material) return;
+
+      const materials = Array.isArray(obj.material) ? obj.material : [obj.material];
+      materials.forEach((mat: any) => {
+        if (mat.emissive) {
+          mat.emissive.set(modeColor);
+          mat.emissiveIntensity = orbBaseIntensity;
+          obj.userData.orbBaseEmissiveIntensity = orbBaseIntensity;
+        }
+      });
     });
   }, [arStore.getState().hudMode, arReady]);
 

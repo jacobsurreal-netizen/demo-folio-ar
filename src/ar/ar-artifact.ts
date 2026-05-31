@@ -15,6 +15,18 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { ARTIFACT_CONFIG } from './ar-config';
 import { arStore } from '../state/store';
 
+/** Confirmed GLB mesh names — do not apply orb pass to other meshes. */
+export const ARTIFACT_MESH_TURQUOISE_ORB = 'TurquoiseOrb';
+export const ARTIFACT_MESH_BLACK_TETRAHEDRON = 'BlackTetrahedron';
+
+const ORB_BASE_COLOR = 0x3dd9c8;
+const ORB_EMISSIVE_COLOR = 0x00e8d4;
+const ORB_EMISSIVE_INTENSITY = 0.55;
+const ORB_METALNESS = 0.05;
+const ORB_ROUGHNESS = 0.45;
+const ORB_PULSE_SPEED = 2.0;
+const ORB_PULSE_AMOUNT = 0.12;
+
 /** Handle returned by loadArtifact for per-frame updates */
 export interface ArtifactHandle {
   /** Call every frame inside the render loop */
@@ -86,6 +98,74 @@ function logArtifactStructure(model: THREE.Object3D): void {
   console.groupEnd();
 }
 
+type OrbPulseTarget = {
+  material: THREE.Material & { emissiveIntensity?: number };
+  getBaseIntensity: () => number;
+};
+
+/**
+ * Improve TurquoiseOrb readability only. BlackTetrahedron and unknown meshes
+ * are left untouched. No fake glow shell.
+ */
+function applyTurquoiseOrbMaterial(model: THREE.Object3D): {
+  pulseTarget: OrbPulseTarget | null;
+  replacedMaterials: THREE.Material[];
+} {
+  const replacedMaterials: THREE.Material[] = [];
+  let pulseTarget: OrbPulseTarget | null = null;
+
+  model.traverse((child) => {
+    if (!(child instanceof THREE.Mesh)) return;
+    if (child.name !== ARTIFACT_MESH_TURQUOISE_ORB) return;
+
+    const materials = Array.isArray(child.material) ? child.material : [child.material];
+    const nextMaterials = materials.map((material) => {
+      const mat = material as AuditableMaterial;
+
+      if (mat.emissive) {
+        if (mat.color) mat.color.setHex(ORB_BASE_COLOR);
+        mat.emissive.setHex(ORB_EMISSIVE_COLOR);
+        mat.emissiveIntensity = ORB_EMISSIVE_INTENSITY;
+        if (typeof mat.metalness === 'number') mat.metalness = ORB_METALNESS;
+        if (typeof mat.roughness === 'number') mat.roughness = ORB_ROUGHNESS;
+        mat.needsUpdate = true;
+        return mat;
+      }
+
+      const previous = mat;
+      const basic = new THREE.MeshBasicMaterial({
+        color: ORB_BASE_COLOR,
+        toneMapped: false,
+      });
+      basic.name = `${mat.name || 'TurquoiseOrb'}_readable`;
+      replacedMaterials.push(previous);
+      return basic;
+    });
+
+    child.material = nextMaterials.length === 1 ? nextMaterials[0] : nextMaterials;
+
+    const primary = (Array.isArray(child.material) ? child.material[0] : child.material) as THREE.Material & {
+      emissiveIntensity?: number;
+    };
+    if (typeof primary.emissiveIntensity === 'number') {
+      child.userData.orbBaseEmissiveIntensity = ORB_EMISSIVE_INTENSITY;
+      pulseTarget = {
+        material: primary,
+        getBaseIntensity: () =>
+          (child.userData.orbBaseEmissiveIntensity as number | undefined) ?? ORB_EMISSIVE_INTENSITY,
+      };
+    }
+  });
+
+  return { pulseTarget, replacedMaterials };
+}
+
+function pulseTurquoiseOrb(target: OrbPulseTarget, elapsedSeconds: number): void {
+  const wave = 0.5 + 0.5 * Math.sin(elapsedSeconds * ORB_PULSE_SPEED);
+  const multiplier = 1 - ORB_PULSE_AMOUNT + ORB_PULSE_AMOUNT * wave;
+  target.material.emissiveIntensity = target.getBaseIntensity() * multiplier;
+}
+
 /**
  * Load the artifact GLB and attach it to the provided parent group.
  *
@@ -113,6 +193,9 @@ export async function loadArtifact(parent: THREE.Group): Promise<ArtifactHandle>
 
         logArtifactStructure(model);
 
+        const { pulseTarget, replacedMaterials } = applyTurquoiseOrbMaterial(model);
+        const pulseStart = performance.now();
+
         // Attach to anchor
         parent.add(model);
 
@@ -124,6 +207,10 @@ export async function loadArtifact(parent: THREE.Group): Promise<ArtifactHandle>
         resolve({
           update() {
             model.rotation.y += ARTIFACT_CONFIG.rotationSpeed;
+            if (pulseTarget) {
+              const elapsed = (performance.now() - pulseStart) * 0.001;
+              pulseTurquoiseOrb(pulseTarget, elapsed);
+            }
           },
 
           dispose() {
@@ -138,6 +225,7 @@ export async function loadArtifact(parent: THREE.Group): Promise<ArtifactHandle>
                 }
               }
             });
+            replacedMaterials.forEach((mat) => mat.dispose());
           },
         });
       },
