@@ -1,9 +1,25 @@
+import { useAppState } from '../hooks/use-app-state';
+
 export function AnalysisPanel() {
-  const data = [
-    { label: 'FREQ', val: '440.12 HZ' },
-    { label: 'AMP', val: '-12.4 DB' },
-    { label: 'PHASE', val: '98.1 %' },
-    { label: 'TEMP', val: '41.2 °C' }
+  const { tracking } = useAppState();
+
+  const freq = tracking === 'locked' ? '369.99 Hz' : '---.-- Hz';
+
+  const data = tracking === 'locked' ? [
+    { label: 'FREQ', val: freq },
+    { label: 'SIGNAL', val: 'STABLE' },
+    { label: 'LOCK', val: 'CONFIRMED' },
+    { label: 'NOISE', val: 'LOW' }
+  ] : tracking === 'lost' ? [
+    { label: 'FREQ', val: freq },
+    { label: 'SIGNAL', val: 'LOST' },
+    { label: 'LOCK', val: 'BROKEN' },
+    { label: 'NOISE', val: 'HIGH' }
+  ] : [
+    { label: 'FREQ', val: freq },
+    { label: 'SIGNAL', val: 'SEARCHING' },
+    { label: 'LOCK', val: 'NONE' },
+    { label: 'NOISE', val: 'HIGH' }
   ];
 
   return (

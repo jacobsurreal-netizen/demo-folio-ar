@@ -23,10 +23,10 @@ export function StatusBar() {
     <div className="hud-top-bar">
       <div className="telemetry-group">
         <span className="hud-label">
-          PROBE_STATE: {tracking === 'locked' ? 'NOMINAL' : tracking === 'lost' ? 'REALIGNING' : 'SCANNING'}
+          PROBE_STATE: {tracking === 'locked' ? 'NOMINAL' : tracking === 'lost' ? 'UNSTABLE' : 'SCANNING'}
         </span>
         <span className="hud-label">
-          LINK_STATUS: {tracking === 'locked' ? 'STABLE' : 'SEARCHING'}
+          TARGET_LINK: {tracking === 'locked' ? 'STABLE' : 'SEARCHING'}
         </span>
         <div className="hud-badge" style={{ marginTop: '8px' }}>
           {tracking === 'locked' ? 'ARTIFACT DETECTED' : 'AWAITING LOCK'}
@@ -36,7 +36,9 @@ export function StatusBar() {
       <div className="telemetry-group" style={{ alignItems: 'flex-end' }}>
         <span className="hud-label">UTC_TC</span>
         <span className="hud-value tabular-nums">{tc}</span>
-        <span className="hud-label" style={{ marginTop: '4px' }}>SECTOR: HERO</span>
+        <span className="hud-label" style={{ marginTop: '4px' }}>
+          FIELD_ZONE: {tracking === 'locked' ? 'ARTIFACT' : tracking === 'lost' ? 'REALIGN' : 'MARKER'}
+        </span>
       </div>
     </div>
   );
