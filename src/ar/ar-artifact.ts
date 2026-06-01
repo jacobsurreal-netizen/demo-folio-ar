@@ -21,11 +21,12 @@ export const ARTIFACT_MESH_BLACK_TETRAHEDRON = 'BlackTetrahedron';
 
 const ORB_BASE_COLOR = 0x3dd9c8;
 const ORB_EMISSIVE_COLOR = 0x00e8d4;
-const ORB_EMISSIVE_INTENSITY = 0.55;
-const ORB_METALNESS = 0.05;
-const ORB_ROUGHNESS = 0.45;
-const ORB_PULSE_SPEED = 2.0;
-const ORB_PULSE_AMOUNT = 0.12;
+const ORB_EMISSIVE_INTENSITY = 0.78; // Bright, glowing anomaly core
+const ORB_METALNESS = 0.12; // Slightly more reflective for energetic feel
+const ORB_ROUGHNESS = 0.28; // Glassier, less matte plastic-y
+const ORB_PULSE_SPEED = 1.3; // Slower breathing: ~1.3 cycles/sec
+const ORB_PULSE_AMOUNT = 0.22; // Larger amplitude for more visible life
+const ORB_SCALE_PULSE_AMOUNT = 0.025; // Very subtle: ±2.5% scale breathing
 
 /** Handle returned by loadArtifact for per-frame updates */
 export interface ArtifactHandle {
@@ -100,6 +101,7 @@ function logArtifactStructure(model: THREE.Object3D): void {
 
 type OrbPulseTarget = {
   material: THREE.Material & { emissiveIntensity?: number };
+  mesh: THREE.Mesh; // For scale breathing animation
   getBaseIntensity: () => number;
 };
 
@@ -151,6 +153,7 @@ function applyTurquoiseOrbMaterial(model: THREE.Object3D): {
       child.userData.orbBaseEmissiveIntensity = ORB_EMISSIVE_INTENSITY;
       pulseTarget = {
         material: primary,
+        mesh: child, // Capture mesh for scale breathing
         getBaseIntensity: () =>
           (child.userData.orbBaseEmissiveIntensity as number | undefined) ?? ORB_EMISSIVE_INTENSITY,
       };
@@ -161,9 +164,16 @@ function applyTurquoiseOrbMaterial(model: THREE.Object3D): {
 }
 
 function pulseTurquoiseOrb(target: OrbPulseTarget, elapsedSeconds: number): void {
+  // Smooth sine wave for breathing effect
   const wave = 0.5 + 0.5 * Math.sin(elapsedSeconds * ORB_PULSE_SPEED);
-  const multiplier = 1 - ORB_PULSE_AMOUNT + ORB_PULSE_AMOUNT * wave;
-  target.material.emissiveIntensity = target.getBaseIntensity() * multiplier;
+  
+  // Emissive intensity modulation: pulsing glow
+  const intensityMultiplier = 1 - ORB_PULSE_AMOUNT + ORB_PULSE_AMOUNT * wave;
+  target.material.emissiveIntensity = target.getBaseIntensity() * intensityMultiplier;
+  
+  // Scale breathing: very subtle, smooth expansion/contraction
+  const scaleMultiplier = 1 + ORB_SCALE_PULSE_AMOUNT * (wave - 0.5) * 2;
+  target.mesh.scale.set(scaleMultiplier, scaleMultiplier, scaleMultiplier);
 }
 
 /**
