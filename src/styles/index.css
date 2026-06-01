@@ -63,15 +63,21 @@ body {
   --hud-transition: 400ms ease-out;
 }
 
-/* ── IR Mode overrides ── */
+/* ── IR Mode overrides (scanner / monochrome tone) ── */
 [data-mode='IR'] {
-  --hud-accent: #e63030;
-  --hud-accent-dim: rgba(230, 48, 48, 0.4);
-  --hud-accent-glow: rgba(230, 48, 48, 0.15);
-  --hud-accent-micro: rgba(230, 48, 48, 0.08);
-  --hud-bg: rgba(20, 0, 0, 0.65);
-  --hud-text: rgba(255, 255, 255, 0.9);
-  --hud-text-dim: rgba(230, 48, 48, 0.6);
+  /* Primary HUD accent: amber for readability over crimson feed */
+  --hud-accent: #f5a623; /* primary amber */
+  --hud-accent-dim: rgba(245, 166, 35, 0.45);
+  --hud-accent-glow: rgba(245, 166, 35, 0.45);
+  --hud-accent-micro: rgba(245, 166, 35, 0.08);
+
+  /* Keep a crimson overlay/vignette for camera feed (separate) */
+  --hud-overlay-crimson: rgba(204, 40, 40, 0.06);
+
+  /* Darker, low-light backdrop for IR */
+  --hud-bg: rgba(6, 2, 2, 0.72);
+  --hud-text: rgba(255, 243, 238, 0.96);
+  --hud-text-dim: rgba(245, 166, 35, 0.45);
 }
 
 /* ── Root mount ── */
@@ -105,19 +111,20 @@ body {
   mix-blend-mode: screen;
 }
 
+/* IR camera diffuser: subtle crimson cast + stronger vignette */
 [data-mode='IR'] .ar-mode-filter {
-  opacity: 0.72;
+  opacity: 0.74;
   background:
     radial-gradient(
       circle at 50% 42%,
-      rgba(255, 100, 55, 0.1) 0%,
-      rgba(170, 0, 0, 0.2) 48%,
-      rgba(0, 0, 0, 0.82) 100%
+      rgba(204, 40, 40, 0.06) 0%,
+      rgba(140, 10, 10, 0.22) 45%,
+      rgba(6, 3, 2, 0.90) 100%
     ),
     linear-gradient(
       180deg,
-      rgba(255, 35, 25, 0.08),
-      rgba(255, 145, 20, 0.045)
+      rgba(180, 20, 20, 0.06),
+      rgba(120, 8, 8, 0.03)
     );
 }
 
@@ -128,12 +135,12 @@ body {
   background:
     repeating-linear-gradient(
       to bottom,
-      rgba(255, 80, 60, 0.075) 0px,
-      rgba(255, 80, 60, 0.075) 1px,
+      rgba(255, 90, 70, 0.085) 0px,
+      rgba(255, 90, 70, 0.085) 1px,
       transparent 2px,
-      transparent 5px
+      transparent 6px
     );
-  opacity: 0.34;
+  opacity: 0.38;
 }
 
 [data-mode='IR'] .ar-mode-filter::after {
@@ -141,9 +148,19 @@ body {
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(circle at 50% 42%, transparent 0%, rgba(0, 0, 0, 0.42) 70%, rgba(0, 0, 0, 0.83) 100%),
-    radial-gradient(circle at 18% 20%, rgba(255, 180, 40, 0.04), transparent 39%);
-  opacity: 0.92;
+    radial-gradient(circle at 50% 42%, transparent 0%, rgba(0, 0, 0, 0.52) 62%, rgba(0, 0, 0, 0.92) 100%),
+    radial-gradient(circle at 18% 20%, rgba(255, 140, 30, 0.03), transparent 39%);
+  opacity: 0.96;
+}
+
+/* Apply a mode-only CSS filter to the AR canvas/container to push the camera feed
+   toward a crimson monochrome appearance. This is visual-only and targets
+   the AR container added in App.tsx (ar-canvas-root). */
+[data-mode='IR'] .ar-canvas-root {
+  -webkit-filter: grayscale(1) sepia(1) hue-rotate(-50deg) saturate(4) contrast(1.35) brightness(0.65);
+  filter: grayscale(1) sepia(1) hue-rotate(-50deg) saturate(4) contrast(1.35) brightness(0.65);
+  transition: filter 220ms ease;
+  will-change: filter;
 }
 
 /* ── Utility: monospace labels ── */

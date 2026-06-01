@@ -17,7 +17,7 @@ export function App() {
   return (
     <div className="app-root" data-mode={hudMode}>
       {/* ── AR Scene Layer ── */}
-      <div style={{ position: 'absolute', inset: 0, zIndex: 'var(--z-ar-canvas)' }}>
+      <div className="ar-canvas-root" style={{ position: 'absolute', inset: 0, zIndex: 'var(--z-ar-canvas)' }}>
         <ARProvider />
       </div>
 
