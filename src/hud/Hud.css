@@ -19,6 +19,10 @@
   overflow: hidden;
 }
 
+.hud-container {
+  isolation: isolate;
+}
+
 .hud-interactive {
   pointer-events: none;
 }
@@ -36,6 +40,28 @@
   height: 100dvh;
   max-width: 440px; /* Mobile-first vertical composition */
   max-height: 900px;
+}
+
+/* HUD-local IR vignette: sits above AR canvas but beneath HUD content */
+.hud-ir-vignette {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0; /* intentionally low: vignette must sit below all HUD content inside the isolated HUD container */
+  opacity: 0;
+  transition: opacity 240ms ease;
+}
+
+[data-mode='IR'][data-ar-ready='true'] .hud-ir-vignette {
+  opacity: 1;
+  background:
+    radial-gradient(
+      ellipse at center,
+      rgba(0,0,0,0) 24%,
+      rgba(60,0,0,0.24) 48%,
+      rgba(0,0,0,0.68) 100%
+    );
+  mix-blend-mode: multiply;
 }
 
 /* ── HUD Layers (Parallax) ── */

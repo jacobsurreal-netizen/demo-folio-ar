@@ -104,7 +104,9 @@ body {
 .ar-mode-filter {
   position: fixed;
   inset: 0;
-  z-index: 5;
+  /* Ensure overlay covers AR video/canvas across mobile and desktop viewports
+     while remaining beneath HUD interactive layer (110). */
+  z-index: 105;
   pointer-events: none;
   opacity: 0;
   transition: opacity 180ms ease;
@@ -112,7 +114,7 @@ body {
 }
 
 /* IR camera diffuser: subtle crimson cast + stronger vignette */
-[data-mode='IR'] .ar-mode-filter {
+[data-mode='IR'][data-ar-ready='true'] .ar-mode-filter {
   opacity: 0.74;
   background:
     radial-gradient(
@@ -128,7 +130,7 @@ body {
     );
 }
 
-[data-mode='IR'] .ar-mode-filter::before {
+[data-mode='IR'][data-ar-ready='true'] .ar-mode-filter::before {
   content: "";
   position: absolute;
   inset: 0;
@@ -143,20 +145,21 @@ body {
   opacity: 0.38;
 }
 
-[data-mode='IR'] .ar-mode-filter::after {
+[data-mode='IR'][data-ar-ready='true'] .ar-mode-filter::after {
   content: "";
   position: absolute;
   inset: 0;
+  /* Stronger vignette: tighten center clear area and darken edges for IR focus */
   background:
-    radial-gradient(circle at 50% 42%, transparent 0%, rgba(0, 0, 0, 0.52) 62%, rgba(0, 0, 0, 0.92) 100%),
-    radial-gradient(circle at 18% 20%, rgba(255, 140, 30, 0.03), transparent 39%);
-  opacity: 0.96;
+    radial-gradient(circle at 50% 42%, transparent 0%, rgba(0, 0, 0, 0.38) 48%, rgba(0, 0, 0, 0.72) 66%, rgba(0, 0, 0, 0.96) 100%),
+    radial-gradient(circle at 18% 20%, rgba(255, 120, 30, 0.03), transparent 39%);
+  opacity: 0.98;
 }
 
 /* Apply a mode-only CSS filter to the AR canvas/container to push the camera feed
    toward a crimson monochrome appearance. This is visual-only and targets
    the AR container added in App.tsx (ar-canvas-root). */
-[data-mode='IR'] .ar-canvas-root {
+[data-mode='IR'][data-ar-ready='true'] .ar-canvas-root {
   -webkit-filter: grayscale(1) sepia(1) hue-rotate(-50deg) saturate(4) contrast(1.35) brightness(0.65);
   filter: grayscale(1) sepia(1) hue-rotate(-50deg) saturate(4) contrast(1.35) brightness(0.65);
   transition: filter 220ms ease;

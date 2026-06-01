@@ -21,6 +21,9 @@ export function Hud() {
 
   return (
     <div className="hud-container" style={{ background: 'transparent', pointerEvents: 'none' }}>
+      {/* HUD-local IR vignette: visual-only, sits above camera but beneath HUD content */}
+      <div className="hud-ir-vignette" aria-hidden="true" />
+
       <div className="hud-scanlines" />
 
       <div className="hud-shell">
