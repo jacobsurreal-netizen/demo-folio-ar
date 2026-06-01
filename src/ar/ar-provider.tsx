@@ -257,7 +257,7 @@ export function ARProvider() {
     });
 
     // 2. TurquoiseOrb emissive tint only — BlackTetrahedron stays untouched.
-    const orbBaseIntensity = arStore.getState().hudMode === 'IR' ? 0.5 : 0.38;
+    const orbBaseIntensity = arStore.getState().hudMode === 'IR' ? 0.5 : 0.5; // COLOR mode now matches IR brightness
     const isColorMode = arStore.getState().hudMode === 'COLOR';
     scene.traverse((obj: any) => {
       if (!obj.isMesh || obj.name !== ARTIFACT_MESH_TURQUOISE_ORB || !obj.material) return;
@@ -269,13 +269,13 @@ export function ARProvider() {
           mat.emissiveIntensity = orbBaseIntensity;
           obj.userData.orbBaseEmissiveIntensity = orbBaseIntensity;
         }
-        // COLOR mode polish: increase metalness and reduce roughness for glassy energy feel
+        // COLOR mode OVERDRIVE: maximum metalness + aggressive roughness reduction for anomalous energy core
         if (isColorMode && typeof mat.metalness === 'number' && typeof mat.roughness === 'number') {
-          mat.metalness = 0.32; // Increased from 0.12 — more reflective, glassy
-          mat.roughness = 0.22; // Reduced from 0.28 — smoother, more energetic
+          mat.metalness = 1.0; // Maximum reflectivity: full metallic character
+          mat.roughness = 0.12; // Aggressively smooth: sharp, glassy, energetic appearance
           mat.needsUpdate = true;
         } else if (!isColorMode && typeof mat.metalness === 'number' && typeof mat.roughness === 'number') {
-          // IR mode: restore baseline values to match original appearance
+          // IR mode: preserve baseline values
           mat.metalness = 0.12;
           mat.roughness = 0.28;
           mat.needsUpdate = true;

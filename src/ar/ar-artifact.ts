@@ -25,8 +25,8 @@ const ORB_EMISSIVE_INTENSITY = 0.78; // Bright, glowing anomaly core
 const ORB_METALNESS = 0.12; // Slightly more reflective for energetic feel
 const ORB_ROUGHNESS = 0.28; // Glassier, less matte plastic-y
 const ORB_PULSE_SPEED = 1.3; // Slower breathing: ~1.3 cycles/sec
-const ORB_PULSE_AMOUNT = 0.22; // Larger amplitude for more visible life
-const ORB_SCALE_PULSE_AMOUNT = 0.025; // Very subtle: ±2.5% scale breathing
+const ORB_PULSE_AMOUNT = 0.38; // Aggressive pulse: 38% amplitude for more visible anomaly energy
+const ORB_SCALE_PULSE_AMOUNT = 0.038; // More visible breathing: ±3.8% scale modulation
 
 /** Handle returned by loadArtifact for per-frame updates */
 export interface ArtifactHandle {
