@@ -24,6 +24,12 @@ export interface AppState {
   arReady: boolean;
   /** Artifact GLB model loaded into scene */
   modelLoaded: boolean;
+  /** Resonance ritual lifecycle (higher-level game state) */
+  resonanceState: 'SEARCHING' | 'ACQUIRED_UNSTABLE' | 'LOCKING' | 'CONFIRMED' | 'LOST';
+  /** Stabilization progress (0..1) */
+  stabilizationProgress: number;
+  /** Is the user holding the stabilize control */
+  stabilizationHold: boolean;
 }
 
 /** Default state — used before AR initialization */
@@ -33,4 +39,7 @@ export const INITIAL_STATE: AppState = {
   signalStrength: 0,
   arReady: false,
   modelLoaded: false,
+  resonanceState: 'SEARCHING',
+  stabilizationProgress: 0,
+  stabilizationHold: false,
 };
