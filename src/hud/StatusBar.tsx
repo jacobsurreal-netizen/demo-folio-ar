@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useAppState } from '../hooks/use-app-state';
 
 export function StatusBar() {
-  const { tracking } = useAppState();
+  const { tracking, resonanceState } = useAppState();
   const [tc, setTc] = useState('00:00:00:00');
 
   useEffect(() => {
@@ -29,7 +29,7 @@ export function StatusBar() {
           TARGET_LINK: {tracking === 'locked' ? 'STABLE' : 'SEARCHING'}
         </span>
         <div className="hud-badge" style={{ marginTop: '8px' }}>
-          {tracking === 'locked' ? 'ARTIFACT DETECTED' : 'AWAITING LOCK'}
+          {resonanceState === 'CONFIRMED' ? 'RESONANCE CONFIRMED' : tracking === 'locked' ? 'ARTIFACT DETECTED' : 'AWAITING LOCK'}
         </div>
       </div>
 

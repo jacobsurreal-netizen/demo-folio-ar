@@ -19,6 +19,8 @@ export function Hud() {
     // Optionally, if you want to ensure data-mode is always in sync, you can trigger a re-render or effect in App
   };
 
+  // No local hold logic here — GatewayAction owns the bottom action slot.
+
   return (
     <div className="hud-container" style={{ background: 'transparent', pointerEvents: 'none' }}>
       {/* HUD-local IR vignette: visual-only, sits above camera but beneath HUD content */}
@@ -62,7 +64,7 @@ export function Hud() {
             }px)`
           }}
         >
-          <GatewayAction />
+            <GatewayAction />
 
           {/* Mode Switcher Floating Button */}
           <button

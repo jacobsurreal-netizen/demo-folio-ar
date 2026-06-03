@@ -41,10 +41,10 @@ class ARStateStore {
       next.stabilizationProgress = 0;
       next.stabilizationHold = false;
     } else if (merged.tracking === 'lost') {
+      // Lost re-arms the ritual: clear progress and hold
       next.resonanceState = 'LOST';
-      // Ensure any active hold stops when target is lost
       next.stabilizationHold = false;
-      // Intentionally do NOT reset stabilizationProgress here (preserve last known)
+      next.stabilizationProgress = 0;
     } else if (merged.tracking === 'locked') {
       const prevRes = prev.resonanceState;
       const currRes = merged.resonanceState ?? prevRes;
@@ -58,7 +58,11 @@ class ARStateStore {
         // Default safe transition to ACQUIRED_UNSTABLE
         next.resonanceState = currRes || 'ACQUIRED_UNSTABLE';
       }
-      // Do not reset stabilizationProgress if already in LOCKING/CONFIRMED (preserved above)
+      // If we're arriving from SEARCHING or LOST, re-arm progress to 0 unless LOCKING/CONFIRMED
+      if ((prev.resonanceState === 'SEARCHING' || prev.resonanceState === 'LOST') && next.resonanceState !== 'LOCKING' && next.resonanceState !== 'CONFIRMED') {
+        next.stabilizationProgress = 0;
+        next.stabilizationHold = false;
+      }
     }
 
     this.state = next;
