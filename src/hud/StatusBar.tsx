@@ -26,7 +26,13 @@ export function StatusBar() {
           PROBE_STATE: {tracking === 'locked' ? 'NOMINAL' : tracking === 'lost' ? 'UNSTABLE' : 'SCANNING'}
         </span>
         <span className="hud-label">
-          TARGET_LINK: {tracking === 'locked' ? 'STABLE' : 'SEARCHING'}
+          TARGET_LINK: {
+            tracking !== 'locked' ? (tracking === 'lost' ? 'SEARCHING' : 'SEARCHING') :
+            resonanceState === 'ACQUIRED_UNSTABLE' ? 'WAVERING' :
+            resonanceState === 'LOCKING' ? 'ALIGNING' :
+            resonanceState === 'CONFIRMED' ? 'STABLE' :
+            'UNKNOWN'
+          }
         </span>
         <div className="hud-badge" style={{ marginTop: '8px' }}>
           {resonanceState === 'CONFIRMED' ? 'RESONANCE CONFIRMED' : tracking === 'locked' ? 'ARTIFACT DETECTED' : 'AWAITING LOCK'}
