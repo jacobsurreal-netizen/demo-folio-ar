@@ -28,6 +28,26 @@ const ORB_PULSE_SPEED = 1.3; // Slower breathing: ~1.3 cycles/sec
 const ORB_PULSE_AMOUNT = 0.38; // Aggressive pulse: 38% amplitude for more visible anomaly energy
 const ORB_SCALE_PULSE_AMOUNT = 0.038; // More visible breathing: ±3.8% scale modulation
 
+// Explicit pulse profiles for clarity and tuning
+const ORB_PULSE_PROFILE_DRIFT = {
+  amountMul: 1.8,
+  speedMul: 1.05,
+  intensityScale: 1.8,
+  amp: 0.95,
+};
+
+const ORB_PULSE_PROFILE_LOCKING = {
+  amountMulBase: 1.0,
+  speedMulBase: 1.0,
+};
+
+const ORB_PULSE_PROFILE_STABLE = {
+  amountMul: 0.45,
+  speedMul: 0.85,
+  intensityScale: 0.85,
+  amp: 0.28,
+};
+
 // Peak color targets for modes (arctic white-blue for COLOR, amber for IR)
 const COLOR_PEAK = new THREE.Color(0xd8ffff);
 const IR_PEAK = new THREE.Color(0xffd66b);
@@ -179,6 +199,9 @@ function pulseTurquoiseOrb(
     stabilizationProgress?: number;
     resonanceState?: 'SEARCHING' | 'ACQUIRED_UNSTABLE' | 'LOCKING' | 'CONFIRMED' | 'LOST';
     hudMode?: 'COLOR' | 'IR';
+    // optional overrides for intensity/amp (from profile)
+    intensityScaleOverride?: number;
+    ampOverride?: number;
   },
 ): void {
   const pulseSpeed = opts?.pulseSpeed ?? ORB_PULSE_SPEED;
@@ -195,23 +218,25 @@ function pulseTurquoiseOrb(
   // As stabilization progresses, reduce pulse amplitude slightly
   const dampenedMultiplier = 1 - stab * 0.6 + intensityMultiplier * (stab * 0.6);
 
-  // Intensity scaling by ritual state
-  let intensityScale = 1;
-  switch (resonance) {
-    case 'ACQUIRED_UNSTABLE':
-      intensityScale = 1.8;
-      break;
-    case 'LOCKING':
-      intensityScale = 1.2 * (1 - stab) + 0.8;
-      break;
-    case 'CONFIRMED':
-      intensityScale = 0.85;
-      break;
-    case 'LOST':
-      intensityScale = 0.6;
-      break;
-    default:
-      intensityScale = 1;
+  // Intensity scaling by ritual state (can be overridden by profile)
+  let intensityScale = opts?.intensityScaleOverride ?? 1;
+  if (!opts?.intensityScaleOverride) {
+    switch (resonance) {
+      case 'ACQUIRED_UNSTABLE':
+        intensityScale = ORB_PULSE_PROFILE_DRIFT.intensityScale;
+        break;
+      case 'LOCKING':
+        intensityScale = 1.2 * (1 - stab) + 0.8;
+        break;
+      case 'CONFIRMED':
+        intensityScale = ORB_PULSE_PROFILE_STABLE.intensityScale;
+        break;
+      case 'LOST':
+        intensityScale = 0.6;
+        break;
+      default:
+        intensityScale = 1;
+    }
   }
 
   target.material.emissiveIntensity = target.getBaseIntensity() * dampenedMultiplier * intensityScale;
@@ -227,23 +252,25 @@ function pulseTurquoiseOrb(
   const tempColor: THREE.Color = mesh.userData.pulseColorBuffer ?? new THREE.Color();
   const peak = hudMode === 'IR' ? IR_PEAK : COLOR_PEAK;
 
-  // Amplitude for color mixing by ritual state
-  let amp = 0.12;
-  switch (resonance) {
-    case 'ACQUIRED_UNSTABLE':
-      amp = 0.95;
-      break;
-    case 'LOCKING':
-      amp = 0.9 * (1 - stab) + 0.25;
-      break;
-    case 'CONFIRMED':
-      amp = 0.28;
-      break;
-    case 'LOST':
-      amp = 0.12;
-      break;
-    default:
-      amp = 0.12;
+  // Amplitude for color mixing by ritual state (can be overridden)
+  let amp = opts?.ampOverride ?? 0.12;
+  if (!opts?.ampOverride) {
+    switch (resonance) {
+      case 'ACQUIRED_UNSTABLE':
+        amp = ORB_PULSE_PROFILE_DRIFT.amp;
+        break;
+      case 'LOCKING':
+        amp = 0.9 * (1 - stab) + 0.25;
+        break;
+      case 'CONFIRMED':
+        amp = ORB_PULSE_PROFILE_STABLE.amp;
+        break;
+      case 'LOST':
+        amp = 0.12;
+        break;
+      default:
+        amp = 0.12;
+    }
   }
 
   const mixFactor = Math.min(1, amp * wave);
@@ -336,20 +363,22 @@ export async function loadArtifact(parent: THREE.Group): Promise<ArtifactHandle>
             if (pulseTarget) {
               const elapsed = (performance.now() - pulseStart) * 0.001;
 
-              // Determine pulse parameters by resonance state
+              // Determine pulse parameters by resonance state using named profiles
               let pulseAmount = ORB_PULSE_AMOUNT;
               let pulseSpeed = ORB_PULSE_SPEED;
 
               if (resonance === 'ACQUIRED_UNSTABLE') {
-                pulseAmount = ORB_PULSE_AMOUNT * 1.8; // stronger visible pulse pre-confirm
-                pulseSpeed = ORB_PULSE_SPEED * 1.05;
+                // Use "drift" profile for unstable acquired
+                pulseAmount = ORB_PULSE_AMOUNT * ORB_PULSE_PROFILE_DRIFT.amountMul;
+                pulseSpeed = ORB_PULSE_SPEED * ORB_PULSE_PROFILE_DRIFT.speedMul;
               } else if (resonance === 'LOCKING') {
                 // Make pulse amplitude reduce as progress rises; rhythm can tighten
                 pulseAmount = ORB_PULSE_AMOUNT * (1 - 0.7 * progress);
                 pulseSpeed = ORB_PULSE_SPEED * (1 + 0.45 * progress);
               } else if (resonance === 'CONFIRMED') {
-                pulseAmount = ORB_PULSE_AMOUNT * 0.45;
-                pulseSpeed = ORB_PULSE_SPEED * 0.85;
+                // Use calmer "stable" profile once confirmed
+                pulseAmount = ORB_PULSE_AMOUNT * ORB_PULSE_PROFILE_STABLE.amountMul;
+                pulseSpeed = ORB_PULSE_SPEED * ORB_PULSE_PROFILE_STABLE.speedMul;
               } else if (resonance === 'LOST') {
                 pulseAmount = ORB_PULSE_AMOUNT * 0.25;
                 pulseSpeed = ORB_PULSE_SPEED * 0.6;
