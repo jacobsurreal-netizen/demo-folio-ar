@@ -23,7 +23,45 @@ class ARStateStore {
 
   /** Merge partial updates into state and notify all subscribers */
   public setState(updates: Partial<AppState>): void {
-    this.state = { ...this.state, ...updates };
+    // Merge incoming updates into a candidate next state
+    const prev = this.state;
+    const merged: AppState = { ...this.state, ...updates } as AppState;
+
+    // Deterministic mapping: technical `tracking` -> experiential `resonanceState`
+    // RULES (Pass 1B):
+    // - awaiting -> SEARCHING (reset progress + hold)
+    // - lost -> LOST (clear hold, keep progress)
+    // - locked -> if previously SEARCHING or LOST -> ACQUIRED_UNSTABLE
+    //            if previously LOCKING or CONFIRMED -> preserve
+
+    const next: AppState = { ...merged };
+
+    if (merged.tracking === 'awaiting') {
+      next.resonanceState = 'SEARCHING';
+      next.stabilizationProgress = 0;
+      next.stabilizationHold = false;
+    } else if (merged.tracking === 'lost') {
+      next.resonanceState = 'LOST';
+      // Ensure any active hold stops when target is lost
+      next.stabilizationHold = false;
+      // Intentionally do NOT reset stabilizationProgress here (preserve last known)
+    } else if (merged.tracking === 'locked') {
+      const prevRes = prev.resonanceState;
+      const currRes = merged.resonanceState ?? prevRes;
+
+      // Preserve explicit LOCKING/CONFIRMED states
+      if (currRes === 'LOCKING' || currRes === 'CONFIRMED') {
+        next.resonanceState = currRes;
+      } else if (prevRes === 'SEARCHING' || prevRes === 'LOST' || currRes === 'SEARCHING' || currRes === 'LOST') {
+        next.resonanceState = 'ACQUIRED_UNSTABLE';
+      } else {
+        // Default safe transition to ACQUIRED_UNSTABLE
+        next.resonanceState = currRes || 'ACQUIRED_UNSTABLE';
+      }
+      // Do not reset stabilizationProgress if already in LOCKING/CONFIRMED (preserved above)
+    }
+
+    this.state = next;
     this.listeners.forEach((listener) => listener());
   }
 
