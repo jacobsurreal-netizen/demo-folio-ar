@@ -40,11 +40,19 @@ class ARStateStore {
       next.resonanceState = 'SEARCHING';
       next.stabilizationProgress = 0;
       next.stabilizationHold = false;
+      // Reset any manual rotation when the ritual re-arms
+      next.artifactRotationYaw = 0;
+      next.artifactRotationPitch = 0;
+      next.artifactRotationActive = false;
     } else if (merged.tracking === 'lost') {
       // Lost re-arms the ritual: clear progress and hold
       next.resonanceState = 'LOST';
       next.stabilizationHold = false;
       next.stabilizationProgress = 0;
+      // Reset manual rotation on lost
+      next.artifactRotationYaw = 0;
+      next.artifactRotationPitch = 0;
+      next.artifactRotationActive = false;
     } else if (merged.tracking === 'locked') {
       const prevRes = prev.resonanceState;
       const currRes = merged.resonanceState ?? prevRes;
@@ -63,6 +71,13 @@ class ARStateStore {
         next.stabilizationProgress = 0;
         next.stabilizationHold = false;
       }
+    }
+
+    // If the experiential state re-arms to SEARCHING or becomes LOST, clear manual rotation offsets
+    if (next.resonanceState === 'SEARCHING' || next.resonanceState === 'LOST') {
+      next.artifactRotationYaw = 0;
+      next.artifactRotationPitch = 0;
+      next.artifactRotationActive = false;
     }
 
     this.state = next;

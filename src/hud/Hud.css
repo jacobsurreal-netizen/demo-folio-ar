@@ -111,6 +111,28 @@
   animation: hudFlicker 9s ease-in-out infinite;
 }
 
+/* Transparent drag surface for manual artifact rotation (CONFIRMED only) */
+.artifact-drag-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none; /* default: inactive */
+  z-index: 10; /* sits beneath interactive HUD controls */
+}
+
+.artifact-drag-surface {
+  position: absolute;
+  inset: 0;
+  background: transparent;
+  pointer-events: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.artifact-drag-surface.active {
+  pointer-events: auto; /* only active in CONFIRMED */
+  touch-action: none; /* prevent browser panning while dragging */
+}
+
 /* ── Top Bar ── */
 .hud-top-bar {
   position: absolute;

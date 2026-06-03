@@ -284,6 +284,9 @@ export async function loadArtifact(parent: THREE.Group): Promise<ArtifactHandle>
         const { pulseTarget, replacedMaterials } = applyTurquoiseOrbMaterial(model);
         const pulseStart = performance.now();
         let confirmedAt: number | null = null;
+        // Auto-rotation accumulators (kept internal to artifact instance)
+        let autoRotationY = model.rotation.y ?? 0;
+        let autoRotationX = model.rotation.x ?? 0;
 
         // Attach to anchor
         parent.add(model);
@@ -301,12 +304,13 @@ export async function loadArtifact(parent: THREE.Group): Promise<ArtifactHandle>
             const progress = Math.max(0, Math.min(1, state.stabilizationProgress ?? 0));
 
             // Rotation speed modulation (lock slows rotation as progress increases)
-            let rotationSpeed = ARTIFACT_CONFIG.rotationSpeed;
+            let rotationSpeed: number = ARTIFACT_CONFIG.rotationSpeed;
 
             if (resonance === 'LOCKING') {
               rotationSpeed = ARTIFACT_CONFIG.rotationSpeed * (1 - 0.6 * progress);
             } else if (resonance === 'CONFIRMED') {
-              rotationSpeed = ARTIFACT_CONFIG.rotationSpeed * 0.5;
+              // Stop automatic rotation so manual control is immediately responsive
+              rotationSpeed = 0;
             } else if (resonance === 'ACQUIRED_UNSTABLE') {
               // Slight deterministic wobble in rotation rate (no randomness)
               const t = (performance.now() - pulseStart) * 0.001;
@@ -315,7 +319,19 @@ export async function loadArtifact(parent: THREE.Group): Promise<ArtifactHandle>
               rotationSpeed = ARTIFACT_CONFIG.rotationSpeed * 0.65;
             }
 
-            model.rotation.y += rotationSpeed;
+            // Advance internal auto-rotation accumulator
+            autoRotationY += rotationSpeed;
+
+            // Manual rotation offsets are only applied when locked + confirmed
+            const yawOffset = state.tracking === 'locked' && resonance === 'CONFIRMED' ? (state.artifactRotationYaw ?? 0) : 0;
+            const pitchOffsetRaw = state.tracking === 'locked' && resonance === 'CONFIRMED' ? (state.artifactRotationPitch ?? 0) : 0;
+            const PITCH_MIN = -0.45;
+            const PITCH_MAX = 0.45;
+            const pitchOffset = Math.max(PITCH_MIN, Math.min(PITCH_MAX, pitchOffsetRaw));
+
+            // Apply composed rotation: auto rotation + manual offsets. Do not modify anchor/group transforms.
+            model.rotation.y = autoRotationY + yawOffset;
+            model.rotation.x = autoRotationX + pitchOffset;
 
             if (pulseTarget) {
               const elapsed = (performance.now() - pulseStart) * 0.001;

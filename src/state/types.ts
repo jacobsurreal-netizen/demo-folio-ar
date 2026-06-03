@@ -30,6 +30,12 @@ export interface AppState {
   stabilizationProgress: number;
   /** Is the user holding the stabilize control */
   stabilizationHold: boolean;
+  /** Manual artifact rotation yaw offset (radians) */
+  artifactRotationYaw: number;
+  /** Manual artifact rotation pitch offset (radians) */
+  artifactRotationPitch: number;
+  /** Whether manual rotation input is currently active (pointer down) */
+  artifactRotationActive?: boolean;
 }
 
 /** Default state — used before AR initialization */
@@ -42,4 +48,7 @@ export const INITIAL_STATE: AppState = {
   resonanceState: 'SEARCHING',
   stabilizationProgress: 0,
   stabilizationHold: false,
+  artifactRotationYaw: 0,
+  artifactRotationPitch: 0,
+  artifactRotationActive: false,
 };
