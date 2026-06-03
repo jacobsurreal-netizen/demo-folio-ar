@@ -30,22 +30,17 @@ const ORB_SCALE_PULSE_AMOUNT = 0.038; // More visible breathing: ±3.8% scale mo
 
 // Explicit pulse profiles for clarity and tuning
 const ORB_PULSE_PROFILE_DRIFT = {
-  amountMul: 1.8,
-  speedMul: 1.05,
-  intensityScale: 1.8,
-  amp: 0.95,
-};
-
-const ORB_PULSE_PROFILE_LOCKING = {
-  amountMulBase: 1.0,
-  speedMulBase: 1.0,
-};
-
-const ORB_PULSE_PROFILE_STABLE = {
   amountMul: 0.45,
   speedMul: 0.85,
   intensityScale: 0.85,
   amp: 0.28,
+};
+
+const ORB_PULSE_PROFILE_STABLE = {
+  amountMul: 1.8,
+  speedMul: 1.05,
+  intensityScale: 1.8,
+  amp: 0.95,
 };
 
 // Peak color targets for modes (arctic white-blue for COLOR, amber for IR)
@@ -247,7 +242,7 @@ function pulseTurquoiseOrb(
   target.mesh.scale.set(scaleMultiplier, scaleMultiplier, scaleMultiplier);
 
   // Color interpolation between base and peak depending on hudMode and resonance.
-  const mesh = target.mesh as any;
+  const mesh = target.mesh as unknown as THREE.Mesh & { userData: { orbBaseEmissiveColor?: THREE.Color; pulseColorBuffer?: THREE.Color } };
   const baseColor: THREE.Color = mesh.userData.orbBaseEmissiveColor ?? new THREE.Color(ORB_EMISSIVE_COLOR);
   const tempColor: THREE.Color = mesh.userData.pulseColorBuffer ?? new THREE.Color();
   const peak = hudMode === 'IR' ? IR_PEAK : COLOR_PEAK;
@@ -276,8 +271,8 @@ function pulseTurquoiseOrb(
   const mixFactor = Math.min(1, amp * wave);
   // tempColor = baseColor lerp peak by mixFactor
   tempColor.copy(baseColor).lerp(peak, mixFactor);
-  if (target.material && (target.material as any).emissive) {
-    (target.material as any).emissive.copy(tempColor);
+  if (target.material && (target.material as unknown as { emissive: THREE.Color }).emissive) {
+    (target.material as unknown as { emissive: THREE.Color }).emissive.copy(tempColor);
   }
 }
 
@@ -313,7 +308,7 @@ export async function loadArtifact(parent: THREE.Group): Promise<ArtifactHandle>
         let confirmedAt: number | null = null;
         // Auto-rotation accumulators (kept internal to artifact instance)
         let autoRotationY = model.rotation.y ?? 0;
-        let autoRotationX = model.rotation.x ?? 0;
+        const autoRotationX = model.rotation.x ?? 0;
 
         // Attach to anchor
         parent.add(model);
