@@ -310,8 +310,24 @@ export async function loadArtifact(parent: THREE.Group): Promise<ArtifactHandle>
         let autoRotationY = model.rotation.y ?? 0;
         const autoRotationX = model.rotation.x ?? 0;
 
-        // Attach to anchor
-        parent.add(model);
+        // Attach to anchor via a smoothing root so the model remains inside the anchor tree
+        // but we can apply a local counter-transform to reduce visible jitter after CONFIRMED.
+        const smoothingRoot = new THREE.Group();
+        smoothingRoot.name = 'artifact-smoothing-root';
+        parent.add(smoothingRoot);
+        smoothingRoot.add(model);
+
+        // Smoothing state and reusable temporaries (avoid allocations in the render loop)
+        const smoothedWorldPos = new THREE.Vector3();
+        const smoothedWorldQuat = new THREE.Quaternion();
+        const tmpWorldPos = new THREE.Vector3();
+        const tmpWorldQuat = new THREE.Quaternion();
+        const tmpLocalPos = new THREE.Vector3();
+        const tmpLocalQuat = new THREE.Quaternion();
+        const tmpInvQuat = new THREE.Quaternion();
+        let smoothingInitialized = false;
+        const CONF_POS_ALPHA = 0.12;
+        const CONF_ROT_ALPHA = 0.12;
 
         // Mark model as loaded in state
         arStore.setState({ modelLoaded: true });
@@ -400,10 +416,51 @@ export async function loadArtifact(parent: THREE.Group): Promise<ArtifactHandle>
                 }
               }
             }
+
+            // ----------------------
+            // Smoothing root handling
+            // ----------------------
+            // Read anchor world pose into temps
+            parent.getWorldPosition(tmpWorldPos);
+            parent.getWorldQuaternion(tmpWorldQuat);
+
+            if (resonance === 'CONFIRMED') {
+              // Initialize smoothing on first confirmed frame to avoid large snaps
+              if (!smoothingInitialized) {
+                smoothedWorldPos.copy(tmpWorldPos);
+                smoothedWorldQuat.copy(tmpWorldQuat);
+                smoothingInitialized = true;
+                // ensure local counter-transform starts identity (no visible jump)
+                smoothingRoot.position.set(0, 0, 0);
+                smoothingRoot.quaternion.identity();
+              } else {
+                // Lerp / slerp toward raw anchor world pose to smooth jitter
+                smoothedWorldPos.lerp(tmpWorldPos, CONF_POS_ALPHA);
+                smoothedWorldQuat.slerp(tmpWorldQuat, CONF_ROT_ALPHA);
+              }
+
+              // Convert smoothed world pose into smoothingRoot local space
+              tmpLocalPos.copy(smoothedWorldPos);
+              parent.worldToLocal(tmpLocalPos);
+
+              tmpInvQuat.copy(tmpWorldQuat).invert();
+              tmpLocalQuat.copy(tmpInvQuat).multiply(smoothedWorldQuat);
+
+              smoothingRoot.position.copy(tmpLocalPos);
+              smoothingRoot.quaternion.copy(tmpLocalQuat);
+            } else {
+              // Reset smoothing while not confirmed (identity counter-transform)
+              smoothingInitialized = false;
+              smoothingRoot.position.set(0, 0, 0);
+              smoothingRoot.quaternion.identity();
+            }
           },
 
           dispose() {
-            parent.remove(model);
+            // Remove smoothing root which contains the model
+            try {
+              parent.remove(smoothingRoot);
+            } catch {}
             model.traverse((child) => {
               if (child instanceof THREE.Mesh) {
                 child.geometry?.dispose();
