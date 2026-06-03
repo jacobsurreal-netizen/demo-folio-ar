@@ -163,16 +163,31 @@ function applyTurquoiseOrbMaterial(model: THREE.Object3D): {
   return { pulseTarget, replacedMaterials };
 }
 
-function pulseTurquoiseOrb(target: OrbPulseTarget, elapsedSeconds: number): void {
-  // Smooth sine wave for breathing effect
-  const wave = 0.5 + 0.5 * Math.sin(elapsedSeconds * ORB_PULSE_SPEED);
-  
-  // Emissive intensity modulation: pulsing glow
-  const intensityMultiplier = 1 - ORB_PULSE_AMOUNT + ORB_PULSE_AMOUNT * wave;
-  target.material.emissiveIntensity = target.getBaseIntensity() * intensityMultiplier;
-  
-  // Scale breathing: very subtle, smooth expansion/contraction
-  const scaleMultiplier = 1 + ORB_SCALE_PULSE_AMOUNT * (wave - 0.5) * 2;
+function pulseTurquoiseOrb(
+  target: OrbPulseTarget,
+  elapsedSeconds: number,
+  opts?: {
+    pulseAmount?: number;
+    pulseSpeed?: number;
+    stabilizationProgress?: number;
+  },
+): void {
+  const pulseSpeed = opts?.pulseSpeed ?? ORB_PULSE_SPEED;
+  const pulseAmount = opts?.pulseAmount ?? ORB_PULSE_AMOUNT;
+  const stab = opts?.stabilizationProgress ?? 0;
+
+  // Smooth sine wave for breathing effect (deterministic)
+  const wave = 0.5 + 0.5 * Math.sin(elapsedSeconds * pulseSpeed);
+
+  // Emissive intensity modulation: pulsing glow, dampened by stabilization progress
+  const intensityMultiplier = 1 - pulseAmount + pulseAmount * wave;
+  // As stabilization progresses, reduce pulse amplitude slightly
+  const dampenedMultiplier = 1 - stab * 0.6 + intensityMultiplier * (stab * 0.6);
+  target.material.emissiveIntensity = target.getBaseIntensity() * dampenedMultiplier;
+
+  // Scale breathing: very subtle, smooth expansion/contraction, also dampened
+  const scaleAmp = ORB_SCALE_PULSE_AMOUNT * (1 - stab * 0.7);
+  const scaleMultiplier = 1 + scaleAmp * (wave - 0.5) * 2;
   target.mesh.scale.set(scaleMultiplier, scaleMultiplier, scaleMultiplier);
 }
 
@@ -205,6 +220,7 @@ export async function loadArtifact(parent: THREE.Group): Promise<ArtifactHandle>
 
         const { pulseTarget, replacedMaterials } = applyTurquoiseOrbMaterial(model);
         const pulseStart = performance.now();
+        let confirmedAt: number | null = null;
 
         // Attach to anchor
         parent.add(model);
@@ -216,10 +232,69 @@ export async function loadArtifact(parent: THREE.Group): Promise<ArtifactHandle>
 
         resolve({
           update() {
-            model.rotation.y += ARTIFACT_CONFIG.rotationSpeed;
+            // Read current app state each frame (read-only)
+            const state = arStore.getState();
+            const resonance = state.resonanceState;
+            const progress = Math.max(0, Math.min(1, state.stabilizationProgress ?? 0));
+
+            // Rotation speed modulation (lock slows rotation as progress increases)
+            let rotationSpeed = ARTIFACT_CONFIG.rotationSpeed;
+
+            if (resonance === 'LOCKING') {
+              rotationSpeed = ARTIFACT_CONFIG.rotationSpeed * (1 - 0.6 * progress);
+            } else if (resonance === 'CONFIRMED') {
+              rotationSpeed = ARTIFACT_CONFIG.rotationSpeed * 0.5;
+            } else if (resonance === 'ACQUIRED_UNSTABLE') {
+              // Slight deterministic wobble in rotation rate (no randomness)
+              const t = (performance.now() - pulseStart) * 0.001;
+              rotationSpeed = ARTIFACT_CONFIG.rotationSpeed * (1 + 0.12 * Math.sin(t * 1.7));
+            } else if (resonance === 'LOST') {
+              rotationSpeed = ARTIFACT_CONFIG.rotationSpeed * 0.65;
+            }
+
+            model.rotation.y += rotationSpeed;
+
             if (pulseTarget) {
               const elapsed = (performance.now() - pulseStart) * 0.001;
-              pulseTurquoiseOrb(pulseTarget, elapsed);
+
+              // Determine pulse parameters by resonance state
+              let pulseAmount = ORB_PULSE_AMOUNT;
+              let pulseSpeed = ORB_PULSE_SPEED;
+
+              if (resonance === 'ACQUIRED_UNSTABLE') {
+                pulseAmount = ORB_PULSE_AMOUNT * 1.25; // slightly more aggressive
+                pulseSpeed = ORB_PULSE_SPEED * 1.05;
+              } else if (resonance === 'LOCKING') {
+                // Make pulse amplitude reduce as progress rises; rhythm can tighten
+                pulseAmount = ORB_PULSE_AMOUNT * (1 - 0.7 * progress);
+                pulseSpeed = ORB_PULSE_SPEED * (1 + 0.45 * progress);
+              } else if (resonance === 'CONFIRMED') {
+                pulseAmount = ORB_PULSE_AMOUNT * 0.45;
+                pulseSpeed = ORB_PULSE_SPEED * 0.85;
+              } else if (resonance === 'LOST') {
+                pulseAmount = ORB_PULSE_AMOUNT * 0.25;
+                pulseSpeed = ORB_PULSE_SPEED * 0.6;
+              }
+
+              pulseTurquoiseOrb(pulseTarget, elapsed, { pulseAmount, pulseSpeed, stabilizationProgress: progress });
+
+              // One-time CONFIRMED spike (subtle): schedule a short spike when state first enters CONFIRMED
+              if (resonance === 'CONFIRMED' && confirmedAt === null) {
+                confirmedAt = performance.now();
+              }
+
+              if (confirmedAt !== null) {
+                const since = (performance.now() - confirmedAt) * 0.001;
+                if (since < 0.6) {
+                  // gentle spike that decays quickly
+                  const spike = 1 + 0.9 * (1 - since / 0.6);
+                  const base = pulseTarget.getBaseIntensity();
+                  pulseTarget.material.emissiveIntensity = Math.max(pulseTarget.material.emissiveIntensity ?? base, base * spike);
+                } else {
+                  // clear confirmation stamp after decay
+                  confirmedAt = null;
+                }
+              }
             }
           },
 
