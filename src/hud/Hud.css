@@ -25,6 +25,8 @@
 
 .hud-interactive {
   pointer-events: none;
+  position: relative; /* ensure z-index on this controls layer is effective */
+  z-index: calc(var(--z-hud-interactive) + 1); /* keep HUD controls above drag surface */
 }
 
 .hud-interactive button,
@@ -355,5 +357,99 @@
   .gateway-button--active,
   .hud-scanlines {
     animation: none;
+  }
+}
+
+/* ── Waveform / Progress HUD (Pass 4) ── */
+.waveform-hud {
+  position: absolute;
+  bottom: 96px; /* sits above bottom bar */
+  left: 20px;
+  right: 20px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  pointer-events: none;
+  z-index: 12;
+  transition: opacity 200ms ease, transform 220ms ease;
+  transform-origin: center bottom;
+  will-change: opacity, transform;
+}
+
+.waveform-svg {
+  width: 100%;
+  height: 40px;
+  display: block;
+}
+
+.waveform-line {
+  stroke: var(--wave-accent, #3dd9c8);
+  stroke-opacity: 0.95;
+  transition: stroke-opacity 200ms ease, filter 240ms ease;
+}
+
+.waveform-progress-fill {
+  transform-origin: 0 0;
+  transition: transform 260ms cubic-bezier(.2,.9,.2,1);
+  opacity: 0.9;
+}
+
+.waveform-label {
+  position: absolute;
+  bottom: 6px;
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  color: var(--hud-accent-dim);
+  pointer-events: none;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+/* Visual states */
+.waveform-hud.state-acquired .waveform-line {
+  /* unstable: jittery, medium amplitude */
+  stroke-dasharray: 3 6;
+  opacity: 0.95;
+  animation: waveformJitter 900ms infinite linear;
+}
+
+.waveform-hud.state-locking .waveform-line {
+  /* calming: smoother stroke */
+  stroke-dasharray: 1 0;
+  animation: waveformCalm 1200ms infinite ease-in-out;
+}
+
+.waveform-hud.state-confirmed .waveform-line {
+  stroke-dasharray: 1 0;
+  animation: none;
+  stroke-opacity: 1;
+}
+
+.waveform-hud.state-lost {
+  opacity: 0.28;
+}
+
+/* Tight, subtle animations */
+@keyframes waveformJitter {
+  0% { transform: translateY(0.0px); }
+  25% { transform: translateY(-1.6px); }
+  50% { transform: translateY(0.6px); }
+  75% { transform: translateY(-0.8px); }
+  100% { transform: translateY(0.0px); }
+}
+
+@keyframes waveformCalm {
+  0% { transform: translateY(0.0px) scaleY(1); }
+  50% { transform: translateY(-0.6px) scaleY(0.98); }
+  100% { transform: translateY(0.0px) scaleY(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .waveform-hud .waveform-line,
+  .waveform-hud .waveform-progress-fill {
+    animation: none !important;
+    transition: none !important;
   }
 }

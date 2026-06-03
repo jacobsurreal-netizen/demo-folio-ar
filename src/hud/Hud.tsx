@@ -7,6 +7,7 @@ import { Reticle } from './Reticle';
 import { HudFrame } from './HudFrame';
 import { AnalysisPanel } from './AnalysisPanel';
 import { GatewayAction } from './GatewayAction';
+import { WaveformProgress } from './WaveformProgress';
 import { arStore } from '../state/store';
 
 export function Hud() {
@@ -113,7 +114,10 @@ export function Hud() {
             }px)`
           }}
         >
-            <GatewayAction />
+          {/* Waveform/progress HUD sits visually above the bottom action slot. Non-interactive. */}
+          <WaveformProgress />
+
+          <GatewayAction />
 
           {/* Mode Switcher Floating Button */}
           <button
@@ -124,7 +128,9 @@ export function Hud() {
               top: '120px',
               right: '20px',
               cursor: 'pointer',
-              border: '1px solid var(--hud-accent)'
+              border: '1px solid var(--hud-accent)',
+              zIndex: 999,
+              pointerEvents: 'auto'
             }}
           >
             {hudMode} MODE
