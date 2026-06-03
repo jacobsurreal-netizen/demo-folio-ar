@@ -28,6 +28,10 @@ const ORB_PULSE_SPEED = 1.3; // Slower breathing: ~1.3 cycles/sec
 const ORB_PULSE_AMOUNT = 0.38; // Aggressive pulse: 38% amplitude for more visible anomaly energy
 const ORB_SCALE_PULSE_AMOUNT = 0.038; // More visible breathing: ±3.8% scale modulation
 
+// Peak color targets for modes (arctic white-blue for COLOR, amber for IR)
+const COLOR_PEAK = new THREE.Color(0xd8ffff);
+const IR_PEAK = new THREE.Color(0xffd66b);
+
 /** Handle returned by loadArtifact for per-frame updates */
 export interface ArtifactHandle {
   /** Call every frame inside the render loop */
@@ -146,11 +150,14 @@ function applyTurquoiseOrbMaterial(model: THREE.Object3D): {
 
     child.material = nextMaterials.length === 1 ? nextMaterials[0] : nextMaterials;
 
-    const primary = (Array.isArray(child.material) ? child.material[0] : child.material) as THREE.Material & {
+    const primary = (Array.isArray(child.material) ? child.material[0] : child.material) as AuditableMaterial & {
       emissiveIntensity?: number;
     };
     if (typeof primary.emissiveIntensity === 'number') {
       child.userData.orbBaseEmissiveIntensity = ORB_EMISSIVE_INTENSITY;
+      // Store base emissive color and a temp color buffer for per-frame pulses
+      child.userData.orbBaseEmissiveColor = (primary.emissive ? primary.emissive.clone() : new THREE.Color(ORB_EMISSIVE_COLOR));
+      child.userData.pulseColorBuffer = new THREE.Color();
       pulseTarget = {
         material: primary,
         mesh: child, // Capture mesh for scale breathing
@@ -170,11 +177,15 @@ function pulseTurquoiseOrb(
     pulseAmount?: number;
     pulseSpeed?: number;
     stabilizationProgress?: number;
+    resonanceState?: 'SEARCHING' | 'ACQUIRED_UNSTABLE' | 'LOCKING' | 'CONFIRMED' | 'LOST';
+    hudMode?: 'COLOR' | 'IR';
   },
 ): void {
   const pulseSpeed = opts?.pulseSpeed ?? ORB_PULSE_SPEED;
   const pulseAmount = opts?.pulseAmount ?? ORB_PULSE_AMOUNT;
   const stab = opts?.stabilizationProgress ?? 0;
+  const resonance = opts?.resonanceState ?? 'SEARCHING';
+  const hudMode = opts?.hudMode ?? 'COLOR';
 
   // Smooth sine wave for breathing effect (deterministic)
   const wave = 0.5 + 0.5 * Math.sin(elapsedSeconds * pulseSpeed);
@@ -183,12 +194,64 @@ function pulseTurquoiseOrb(
   const intensityMultiplier = 1 - pulseAmount + pulseAmount * wave;
   // As stabilization progresses, reduce pulse amplitude slightly
   const dampenedMultiplier = 1 - stab * 0.6 + intensityMultiplier * (stab * 0.6);
-  target.material.emissiveIntensity = target.getBaseIntensity() * dampenedMultiplier;
+
+  // Intensity scaling by ritual state
+  let intensityScale = 1;
+  switch (resonance) {
+    case 'ACQUIRED_UNSTABLE':
+      intensityScale = 1.8;
+      break;
+    case 'LOCKING':
+      intensityScale = 1.2 * (1 - stab) + 0.8;
+      break;
+    case 'CONFIRMED':
+      intensityScale = 0.85;
+      break;
+    case 'LOST':
+      intensityScale = 0.6;
+      break;
+    default:
+      intensityScale = 1;
+  }
+
+  target.material.emissiveIntensity = target.getBaseIntensity() * dampenedMultiplier * intensityScale;
 
   // Scale breathing: very subtle, smooth expansion/contraction, also dampened
   const scaleAmp = ORB_SCALE_PULSE_AMOUNT * (1 - stab * 0.7);
   const scaleMultiplier = 1 + scaleAmp * (wave - 0.5) * 2;
   target.mesh.scale.set(scaleMultiplier, scaleMultiplier, scaleMultiplier);
+
+  // Color interpolation between base and peak depending on hudMode and resonance.
+  const mesh = target.mesh as any;
+  const baseColor: THREE.Color = mesh.userData.orbBaseEmissiveColor ?? new THREE.Color(ORB_EMISSIVE_COLOR);
+  const tempColor: THREE.Color = mesh.userData.pulseColorBuffer ?? new THREE.Color();
+  const peak = hudMode === 'IR' ? IR_PEAK : COLOR_PEAK;
+
+  // Amplitude for color mixing by ritual state
+  let amp = 0.12;
+  switch (resonance) {
+    case 'ACQUIRED_UNSTABLE':
+      amp = 0.95;
+      break;
+    case 'LOCKING':
+      amp = 0.9 * (1 - stab) + 0.25;
+      break;
+    case 'CONFIRMED':
+      amp = 0.28;
+      break;
+    case 'LOST':
+      amp = 0.12;
+      break;
+    default:
+      amp = 0.12;
+  }
+
+  const mixFactor = Math.min(1, amp * wave);
+  // tempColor = baseColor lerp peak by mixFactor
+  tempColor.copy(baseColor).lerp(peak, mixFactor);
+  if (target.material && (target.material as any).emissive) {
+    (target.material as any).emissive.copy(tempColor);
+  }
 }
 
 /**
@@ -262,7 +325,7 @@ export async function loadArtifact(parent: THREE.Group): Promise<ArtifactHandle>
               let pulseSpeed = ORB_PULSE_SPEED;
 
               if (resonance === 'ACQUIRED_UNSTABLE') {
-                pulseAmount = ORB_PULSE_AMOUNT * 1.25; // slightly more aggressive
+                pulseAmount = ORB_PULSE_AMOUNT * 1.8; // stronger visible pulse pre-confirm
                 pulseSpeed = ORB_PULSE_SPEED * 1.05;
               } else if (resonance === 'LOCKING') {
                 // Make pulse amplitude reduce as progress rises; rhythm can tighten
@@ -276,7 +339,8 @@ export async function loadArtifact(parent: THREE.Group): Promise<ArtifactHandle>
                 pulseSpeed = ORB_PULSE_SPEED * 0.6;
               }
 
-              pulseTurquoiseOrb(pulseTarget, elapsed, { pulseAmount, pulseSpeed, stabilizationProgress: progress });
+              const hudMode = arStore.getState().hudMode;
+              pulseTurquoiseOrb(pulseTarget, elapsed, { pulseAmount, pulseSpeed, stabilizationProgress: progress, resonanceState: resonance, hudMode });
 
               // One-time CONFIRMED spike (subtle): schedule a short spike when state first enters CONFIRMED
               if (resonance === 'CONFIRMED' && confirmedAt === null) {
