@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useAppState } from '../hooks/use-app-state';
 
 export function StatusBar() {
-  const { tracking } = useAppState();
+  const { tracking, resonanceState } = useAppState();
   const [tc, setTc] = useState('00:00:00:00');
 
   useEffect(() => {
@@ -23,20 +23,28 @@ export function StatusBar() {
     <div className="hud-top-bar">
       <div className="telemetry-group">
         <span className="hud-label">
-          PROBE_STATE: {tracking === 'locked' ? 'NOMINAL' : tracking === 'lost' ? 'REALIGNING' : 'SCANNING'}
+          PROBE_STATE: {tracking === 'locked' ? 'NOMINAL' : tracking === 'lost' ? 'UNSTABLE' : 'SCANNING'}
         </span>
         <span className="hud-label">
-          LINK_STATUS: {tracking === 'locked' ? 'STABLE' : 'SEARCHING'}
+          TARGET_LINK: {
+            tracking !== 'locked' ? (tracking === 'lost' ? 'SEARCHING' : 'SEARCHING') :
+            resonanceState === 'ACQUIRED_UNSTABLE' ? 'WAVERING' :
+            resonanceState === 'LOCKING' ? 'ALIGNING' :
+            resonanceState === 'CONFIRMED' ? 'STABLE' :
+            'UNKNOWN'
+          }
         </span>
         <div className="hud-badge" style={{ marginTop: '8px' }}>
-          {tracking === 'locked' ? 'ARTIFACT DETECTED' : 'AWAITING LOCK'}
+          {resonanceState === 'CONFIRMED' ? 'RESONANCE CONFIRMED' : tracking === 'locked' ? 'ARTIFACT DETECTED' : 'AWAITING LOCK'}
         </div>
       </div>
 
       <div className="telemetry-group" style={{ alignItems: 'flex-end' }}>
         <span className="hud-label">UTC_TC</span>
         <span className="hud-value tabular-nums">{tc}</span>
-        <span className="hud-label" style={{ marginTop: '4px' }}>SECTOR: HERO</span>
+        <span className="hud-label" style={{ marginTop: '4px' }}>
+          FIELD_ZONE: {tracking === 'locked' ? 'ARTIFACT' : tracking === 'lost' ? 'REALIGN' : 'MARKER'}
+        </span>
       </div>
     </div>
   );

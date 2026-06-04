@@ -20,53 +20,154 @@ import * as THREE from 'three';
 import { MindARThree } from 'mind-ar/dist/mindar-image-three.prod.js';
 import { ACTIVE_MARKER, MINDAR_CONFIG, LOST_TIMEOUT_MS } from './ar-config';
 import { setupScene } from './ar-scene';
-import { loadArtifact, type ArtifactHandle } from './ar-artifact';
+import { ARTIFACT_MESH_TURQUOISE_ORB, loadArtifact, type ArtifactHandle } from './ar-artifact';
 import { arStore } from '../state/store';
 import { useAppState } from '../hooks/use-app-state';
+
+const AR_SHUTDOWN_EVENT = 'surreal-ar-shutdown-request';
+
+const getARInitErrorMessage = (error: unknown) => {
+  const message = error instanceof Error
+    ? error.message
+    : typeof error === 'object' && error && 'message' in error
+      ? String((error as { message?: unknown }).message ?? '')
+      : typeof error === 'string'
+        ? error
+        : '';
+
+  const name = error instanceof DOMException
+    ? error.name
+    : typeof error === 'object' && error && 'name' in error
+      ? String((error as { name?: unknown }).name ?? '')
+      : '';
+
+  if (message.includes('404')) {
+    return 'Marker target file not found (.mind)';
+  }
+
+  if (name === 'NotFoundError' || message.includes('NotFoundError') || message.includes('Requested device not found')) {
+    return 'CAMERA DEVICE NOT FOUND';
+  }
+
+  return 'CAMERA INITIALIZATION FAILED';
+};
 
 export function ARProvider() {
   const containerRef = useRef<HTMLDivElement>(null);
   const mindarRef = useRef<any>(null);
   const artifactHandleRef = useRef<ArtifactHandle | null>(null);
   const lostTimeoutRef = useRef<number | null>(null);
+  const startInFlightRef = useRef(false);
+  const mindarStartedRef = useRef(false);
+  const arSessionRef = useRef(0);
   const [initError, setInitError] = useState<string | null>(null);
 
   const { arReady } = useAppState();
 
-  const stopAR = useCallback(() => {
-    if (mindarRef.current) {
-      mindarRef.current.stop();
-      const renderer = mindarRef.current.renderer;
-      if (renderer) {
-        renderer.setAnimationLoop(null);
+  const stopMediaStream = useCallback((stream: unknown) => {
+    if (stream instanceof MediaStream) {
+      stream.getTracks().forEach((track) => track.stop());
+    }
+  }, []);
+
+  const stopVideoTracks = useCallback((root: HTMLElement | null) => {
+    root?.querySelectorAll('video').forEach((video) => {
+      stopMediaStream(video.srcObject);
+      video.pause();
+      video.removeAttribute('src');
+      video.srcObject = null;
+      video.load();
+    });
+  }, [stopMediaStream]);
+
+  const stopMindARMedia = useCallback((mindar: any) => {
+    const possibleVideos = [
+      mindar?.video,
+      mindar?.inputVideo,
+      mindar?.controller?.video,
+      mindar?.controller?.inputVideo,
+    ];
+
+    possibleVideos.forEach((video) => {
+      if (video instanceof HTMLVideoElement) {
+        stopMediaStream(video.srcObject);
+        video.pause();
+        video.removeAttribute('src');
+        video.srcObject = null;
+        video.load();
+      }
+    });
+  }, [stopMediaStream]);
+
+  const stopAllVideoTracks = useCallback(() => {
+    stopVideoTracks(containerRef.current);
+    stopVideoTracks(document.body);
+  }, [stopVideoTracks]);
+
+  const cleanupAR = useCallback(() => {
+    arSessionRef.current += 1;
+
+    if (lostTimeoutRef.current) {
+      clearTimeout(lostTimeoutRef.current);
+      lostTimeoutRef.current = null;
+    }
+
+    const mindar = mindarRef.current;
+    const wasStarted = mindarStartedRef.current;
+    mindarStartedRef.current = false;
+
+    if (mindar) {
+      const renderer = mindar.renderer;
+      renderer?.setAnimationLoop(null);
+      stopMindARMedia(mindar);
+      if (wasStarted && typeof mindar.stop === 'function') {
+        try {
+          mindar.stop();
+        } catch (error) {
+          console.warn('[AR] MindAR stop failed during cleanup:', error);
+        }
+      }
+      if (renderer && typeof renderer.dispose === 'function') {
         renderer.dispose();
       }
     }
+
     if (artifactHandleRef.current) {
       artifactHandleRef.current.dispose();
       artifactHandleRef.current = null;
     }
-    arStore.setState({ arReady: false, tracking: 'awaiting' });
-  }, []);
+
+    stopAllVideoTracks();
+    containerRef.current?.replaceChildren();
+    mindarRef.current = null;
+    startInFlightRef.current = false;
+    arStore.setState({ arReady: false, tracking: 'awaiting', signalStrength: 0, modelLoaded: false });
+  }, [stopAllVideoTracks, stopMindARMedia]);
 
   const startAR = useCallback(async () => {
     if (!containerRef.current) return;
-    if (arReady) return;
+    if (arReady || startInFlightRef.current) return;
 
     try {
+      cleanupAR();
+      startInFlightRef.current = true;
+      const sessionId = arSessionRef.current;
       setInitError(null);
       console.log('[AR] Initializing MindAR with target:', ACTIVE_MARKER);
 
-      const mindarThree = new MindARThree({
+      const mindarOptions = {
         container: containerRef.current,
         imageTargetSrc: ACTIVE_MARKER,
         filterMinCF: MINDAR_CONFIG.filterMinCF,
         filterBeta: MINDAR_CONFIG.filterBeta,
         warmupTolerance: MINDAR_CONFIG.warmupTolerance,
         missTolerance: MINDAR_CONFIG.missTolerance,
+        uiScanning: 'no',
         uiLoading: 'no',
         uiError: 'no',
-      });
+      };
+
+      const mindarThree = new MindARThree(mindarOptions);
 
       const { renderer, scene, camera } = mindarThree;
       mindarRef.current = mindarThree;
@@ -99,12 +200,24 @@ export function ARProvider() {
       };
 
       // Load the artifact
-      artifactHandleRef.current = await loadArtifact(anchor.group);
+      const artifactHandle = await loadArtifact(anchor.group);
+      if (arSessionRef.current !== sessionId) {
+        artifactHandle.dispose();
+        renderer.dispose();
+        return;
+      }
+      artifactHandleRef.current = artifactHandle;
 
       // Start AR
       await mindarThree.start();
+      mindarStartedRef.current = true;
+      if (arSessionRef.current !== sessionId) {
+        cleanupAR();
+        return;
+      }
       console.log('[AR] MindAR Started');
       arStore.setState({ arReady: true });
+      startInFlightRef.current = false;
 
       // Render Loop
       renderer.setAnimationLoop(() => {
@@ -114,15 +227,17 @@ export function ARProvider() {
         renderer.render(scene, camera);
       });
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[AR] Initialization failed:', error);
-      const msg = error.message?.includes('404')
-        ? 'Marker target file not found (.mind)'
-        : 'Failed to access camera or initialize AR';
-      setInitError(msg);
-      stopAR();
+      setInitError(getARInitErrorMessage(error));
+      cleanupAR();
     }
-  }, [arReady, stopAR]);
+  }, [arReady, cleanupAR]);
+
+  const restartAR = useCallback(() => {
+    cleanupAR();
+    void startAR();
+  }, [cleanupAR, startAR]);
 
   // ── Mode Response ──
   // Update scene lighting and artifact materials when hudMode changes.
@@ -141,28 +256,66 @@ export function ARProvider() {
       }
     });
 
-    // 2. Artifact Tint (Traverse anchor groups)
-    // We only apply a subtle emissive tint to preserve the original material integrity.
+    // 2. TurquoiseOrb emissive tint only — BlackTetrahedron stays untouched.
+    const orbBaseIntensity = arStore.getState().hudMode === 'IR' ? 0.5 : 0.5; // COLOR mode now matches IR brightness
+    const isColorMode = arStore.getState().hudMode === 'COLOR';
     scene.traverse((obj: any) => {
-      if (obj.isMesh && obj.material) {
-        const materials = Array.isArray(obj.material) ? obj.material : [obj.material];
-        materials.forEach((mat: any) => {
-          if (mat.emissive) {
-            mat.emissive.set(modeColor);
-            mat.emissiveIntensity = arStore.getState().hudMode === 'IR' ? 0.5 : 0.2;
-          }
-        });
-      }
+      if (!obj.isMesh || obj.name !== ARTIFACT_MESH_TURQUOISE_ORB || !obj.material) return;
+
+      const materials = Array.isArray(obj.material) ? obj.material : [obj.material];
+      materials.forEach((mat: any) => {
+        if (mat.emissive) {
+          mat.emissive.set(modeColor);
+          mat.emissiveIntensity = orbBaseIntensity;
+          obj.userData.orbBaseEmissiveIntensity = orbBaseIntensity;
+        }
+        // COLOR mode OVERDRIVE: maximum metalness + aggressive roughness reduction for anomalous energy core
+        if (isColorMode && typeof mat.metalness === 'number' && typeof mat.roughness === 'number') {
+          mat.metalness = 1.0; // Maximum reflectivity: full metallic character
+          mat.roughness = 0.12; // Aggressively smooth: sharp, glassy, energetic appearance
+          mat.needsUpdate = true;
+        } else if (!isColorMode && typeof mat.metalness === 'number' && typeof mat.roughness === 'number') {
+          // IR mode: preserve baseline values
+          mat.metalness = 0.12;
+          mat.roughness = 0.28;
+          mat.needsUpdate = true;
+        }
+      });
     });
   }, [arStore.getState().hudMode, arReady]);
 
-  // Cleanup on unmount
+  // Browser lifecycle cleanup prevents stale camera streams after tab/app switches.
   useEffect(() => {
-    return () => {
-      stopAR();
-      if (lostTimeoutRef.current) clearTimeout(lostTimeoutRef.current);
+    const handlePageHide = () => cleanupAR();
+    const handleBeforeUnload = () => cleanupAR();
+    const handleShutdownRequest = () => cleanupAR();
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        cleanupAR();
+      }
     };
-  }, [stopAR]);
+    const handlePageShow = (event: PageTransitionEvent) => {
+      if (event.persisted || document.visibilityState === 'visible') {
+        cleanupAR();
+        setInitError(null);
+      }
+    };
+
+    window.addEventListener('pagehide', handlePageHide);
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('pageshow', handlePageShow);
+    window.addEventListener(AR_SHUTDOWN_EVENT, handleShutdownRequest);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('pagehide', handlePageHide);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('pageshow', handlePageShow);
+      window.removeEventListener(AR_SHUTDOWN_EVENT, handleShutdownRequest);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      cleanupAR();
+    };
+  }, [cleanupAR]);
 
   return (
     <div className="ar-layer" style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }}>
@@ -214,7 +367,7 @@ export function ARProvider() {
           <h2 className="mono" style={{ color: '#dc2626', marginBottom: '12px' }}>System Error</h2>
           <p style={{ marginBottom: '24px', opacity: 0.8 }}>{initError}</p>
           <button
-            onClick={() => setInitError(null)}
+            onClick={restartAR}
             className="mono"
             style={{
               padding: '12px 24px',
@@ -224,7 +377,7 @@ export function ARProvider() {
               cursor: 'pointer'
             }}
           >
-            Retry
+            Restart Scanner
           </button>
         </div>
       )}

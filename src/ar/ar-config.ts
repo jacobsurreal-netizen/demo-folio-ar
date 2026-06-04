@@ -36,23 +36,33 @@ export const ARTIFACT_CONFIG = {
 
 // ── MindAR tracking parameters ──────────────────────────────────
 // See: https://hiukim.github.io/mind-ar-js-doc/quick-start/tracking-config
+//
+// PASS 1: Marker Tracking Stability — Jitter Reduction
+// - Increased filterBeta for better responsiveness to fast movement
+// - Slightly raised filterMinCF for smoother tracking without excessive lag
+// - Reduced warmupTolerance for faster lock acquisition
 
+// PASS 1C: Final Jitter Reduction Test
+// - filterMinCF: 0.0007 (even smoother, still conservative)
+// - filterBeta: 2500 (maintains responsiveness)
+// - warmupTolerance: 4 (unchanged)
+// - missTolerance: 7 (slightly more robust lost detection)
 export const MINDAR_CONFIG = {
   /** One-euro filter cutoff frequency (lower = smoother, more latency) */
-  filterMinCF: 0.0001,
+  filterMinCF: 0.0007,
   /** One-euro filter speed coefficient (higher = less delay on fast movement) */
-  filterBeta: 1000,
+  filterBeta: 2500,
   /** Continuous frames required before target-found fires */
-  warmupTolerance: 5,
+  warmupTolerance: 4,
   /** Continuous frames required before target-lost fires */
-  missTolerance: 5,
+  missTolerance: 7,
   /** Max simultaneous tracked targets */
   maxTrack: 1,
 } as const;
 
 // ── Gateway ─────────────────────────────────────────────────────
 
-export const GATEWAY_URL = 'https://surreal-xp-lab-folio.vercel.app';
+export const GATEWAY_URL = 'https://surreal-xp-lab-folio.vercel.app/recon?entry=ar';
 
 // ── Lost → Awaiting timeout ─────────────────────────────────────
 

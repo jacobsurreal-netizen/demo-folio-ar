@@ -12,12 +12,12 @@ import { ARProvider } from './ar/ar-provider';
 import { Hud } from './hud/Hud';
 
 export function App() {
-  const { hudMode } = useAppState();
+  const { hudMode, arReady } = useAppState();
 
   return (
-    <div className="app-root" data-mode={hudMode}>
+    <div className="app-root" data-mode={hudMode} data-ar-ready={arReady ? 'true' : 'false'}>
       {/* ── AR Scene Layer ── */}
-      <div style={{ position: 'absolute', inset: 0, zIndex: 'var(--z-ar-canvas)' }}>
+      <div className="ar-canvas-root" style={{ position: 'absolute', inset: 0, zIndex: 'var(--z-ar-canvas)' }}>
         <ARProvider />
       </div>
 
