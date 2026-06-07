@@ -65,14 +65,18 @@ export function Hud() {
             }}
             onPointerUp={(e) => {
               if (e.pointerId !== pointer.current.id) return;
-              try { (e.currentTarget as Element).releasePointerCapture(e.pointerId); } catch {}
+              try { (e.currentTarget as Element).releasePointerCapture(e.pointerId); } catch {
+                /* ignore release pointer capture failures */
+              }
               pointer.current.down = false;
               pointer.current.id = -1;
               arStore.setState({ artifactRotationActive: false });
             }}
             onPointerCancel={(e) => {
               if (e.pointerId !== pointer.current.id) return;
-              try { (e.currentTarget as Element).releasePointerCapture(e.pointerId); } catch {}
+              try { (e.currentTarget as Element).releasePointerCapture(e.pointerId); } catch {
+                /* ignore release pointer capture failures */
+              }
               pointer.current.down = false;
               pointer.current.id = -1;
               arStore.setState({ artifactRotationActive: false });

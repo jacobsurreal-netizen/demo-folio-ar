@@ -25,7 +25,35 @@ import { arStore } from '../state/store';
 import { useAppState } from '../hooks/use-app-state';
 
 const AR_SHUTDOWN_EVENT = 'surreal-ar-shutdown-request';
-const AUTHOR_TRACE_URL = 'https://www.instagram.com/jacob_surreal/';
+
+// Minimal local types to avoid `any` and keep behavior identical.
+
+type MindARAnchorLike = {
+  group: THREE.Group;
+  onTargetFound?: (() => void) | null;
+  onTargetLost?: (() => void) | null;
+};
+
+type MindARLike = {
+  video?: HTMLVideoElement | null;
+  inputVideo?: HTMLVideoElement | null;
+  controller?: { video?: HTMLVideoElement | null; inputVideo?: HTMLVideoElement | null } | null;
+  renderer?: THREE.WebGLRenderer | null;
+  stop?: () => void;
+  addAnchor?: (i: number) => MindARAnchorLike;
+};
+
+type EmissiveLike = {
+  set: (v: number) => void;
+};
+
+type MaterialLike = {
+  emissive?: EmissiveLike;
+  emissiveIntensity?: number;
+  metalness?: number;
+  roughness?: number;
+  needsUpdate?: boolean;
+};
 
 const getARInitErrorMessage = (error: unknown) => {
   const message = error instanceof Error
@@ -55,7 +83,7 @@ const getARInitErrorMessage = (error: unknown) => {
 
 export function ARProvider() {
   const containerRef = useRef<HTMLDivElement>(null);
-  const mindarRef = useRef<any>(null);
+  const mindarRef = useRef<MindARLike | null>(null);
   const artifactHandleRef = useRef<ArtifactHandle | null>(null);
   const lostTimeoutRef = useRef<number | null>(null);
   const startInFlightRef = useRef(false);
@@ -93,8 +121,8 @@ export function ARProvider() {
     });
   }, [stopMediaStream]);
 
-  const stopMindARMedia = useCallback((mindar: any) => {
-    const possibleVideos = [
+  const stopMindARMedia = useCallback((mindar: MindARLike | null | undefined) => {
+    const possibleVideos: Array<HTMLVideoElement | null | undefined> = [
       mindar?.video,
       mindar?.inputVideo,
       mindar?.controller?.video,
@@ -257,11 +285,11 @@ export function ARProvider() {
   useEffect(() => {
     if (!arReady || !mindarRef.current) return;
 
-    const { scene } = mindarRef.current;
+    const { scene } = mindarRef.current as MindARLike & { scene: THREE.Scene };
     const modeColor = arStore.getState().hudMode === 'IR' ? 0xff3333 : 0x00f2ff;
 
     // 1. Update Directional Lights
-    scene.traverse((obj: any) => {
+    scene.traverse((obj: THREE.Object3D) => {
       if (obj instanceof THREE.DirectionalLight) {
         // Shift key light towards mode color
         obj.color.set(modeColor);
@@ -272,14 +300,17 @@ export function ARProvider() {
     // 2. TurquoiseOrb emissive tint only — BlackTetrahedron stays untouched.
     const orbBaseIntensity = arStore.getState().hudMode === 'IR' ? 0.5 : 0.5; // COLOR mode now matches IR brightness
     const isColorMode = arStore.getState().hudMode === 'COLOR';
-    scene.traverse((obj: any) => {
+    scene.traverse((obj: THREE.Object3D & { isMesh?: boolean; material?: unknown }) => {
       if (!obj.isMesh || obj.name !== ARTIFACT_MESH_TURQUOISE_ORB || !obj.material) return;
 
-      const materials = Array.isArray(obj.material) ? obj.material : [obj.material];
-      materials.forEach((mat: any) => {
+      const materials: unknown[] = Array.isArray(obj.material) ? obj.material : [obj.material];
+      materials.forEach((matRaw: unknown) => {
+        const mat = matRaw as MaterialLike & Record<string, unknown>;
         if (mat.emissive) {
+          // `emissive.set` expects a number/color; keep use identical
           mat.emissive.set(modeColor);
           mat.emissiveIntensity = orbBaseIntensity;
+          obj.userData = obj.userData ?? {};
           obj.userData.orbBaseEmissiveIntensity = orbBaseIntensity;
         }
         // COLOR mode OVERDRIVE: maximum metalness + aggressive roughness reduction for anomalous energy core
