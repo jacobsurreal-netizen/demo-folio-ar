@@ -325,28 +325,32 @@ export function ARProvider() {
         <div className="permission-gate" style={{
           position: 'fixed',
           inset: 0,
-          zIndex: 300,
+          zIndex: 'var(--z-hud)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          background: 'rgba(0,0,0,0.85)',
-          backdropFilter: 'blur(10px)'
+          background: '#000'
         }}>
-          <button
-            onClick={startAR}
-            className="mono"
-            style={{
-              padding: '16px 32px',
-              background: 'transparent',
-              border: '1px solid var(--hud-accent)',
-              color: 'var(--hud-accent)',
-              cursor: 'pointer',
-              fontSize: 'var(--text-base)',
-              letterSpacing: '0.1em'
-            }}
-          >
-            Initialize System
-          </button>
+          <div style={{ textAlign: 'center', color: 'var(--hud-accent, #9be7ff)' }}>
+            <button
+              onClick={startAR}
+              className="mono"
+              style={{
+                padding: '16px 32px',
+                background: 'transparent',
+                border: '1px solid var(--hud-accent)',
+                color: 'var(--hud-accent)',
+                cursor: 'pointer',
+                fontSize: 'var(--text-base)',
+                letterSpacing: '0.06em'
+              }}
+            >
+              START FIELD TOOL
+            </button>
+            <div style={{ marginTop: '12px', fontSize: '0.95rem', opacity: 0.9 }}>
+              Scan ⧋ glyph on card to stabilize the signal.
+            </div>
+          </div>
         </div>
       )}
 
