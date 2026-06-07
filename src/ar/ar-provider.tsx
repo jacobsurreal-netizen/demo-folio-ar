@@ -61,11 +61,6 @@ export function ARProvider() {
   const mindarStartedRef = useRef(false);
   const arSessionRef = useRef(0);
   const [initError, setInitError] = useState<string | null>(null);
-  const [booting, setBooting] = useState(false);
-  const [bootStart, setBootStart] = useState<number | null>(null);
-  const MIN_BOOT_MS = 2300; // minimum boot overlay duration (ms)
-  const [startupNeedsGesture, setStartupNeedsGesture] = useState(false);
-  const STARTUP_TIMEOUT_MS = 5000; // fallback timeout to surface gesture requirement
 
   const { arReady } = useAppState();
 
@@ -146,9 +141,6 @@ export function ARProvider() {
     containerRef.current?.replaceChildren();
     mindarRef.current = null;
     startInFlightRef.current = false;
-    setBooting(false);
-    setBootStart(null);
-    setStartupNeedsGesture(false);
     arStore.setState({ arReady: false, tracking: 'awaiting', signalStrength: 0, modelLoaded: false });
   }, [stopAllVideoTracks, stopMindARMedia]);
 
@@ -159,10 +151,6 @@ export function ARProvider() {
     try {
       cleanupAR();
       startInFlightRef.current = true;
-      // show non-interactive boot overlay
-      setBooting(true);
-      setStartupNeedsGesture(false);
-      setBootStart(Date.now());
       const sessionId = arSessionRef.current;
       setInitError(null);
       console.log('[AR] Initializing MindAR with target:', ACTIVE_MARKER);
@@ -310,8 +298,6 @@ export function ARProvider() {
       if (event.persisted || document.visibilityState === 'visible') {
         cleanupAR();
         setInitError(null);
-        // If pageshow/restore occurred, attempt to restart automatically
-        void startAR();
       }
     };
 
@@ -329,104 +315,37 @@ export function ARProvider() {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       cleanupAR();
     };
-  }, [cleanupAR, startAR]);
-
-  // Auto-start on mount
-  useEffect(() => {
-    void startAR();
-  }, [startAR]);
-
-  // Dismiss boot overlay only after AR ready AND minimum duration elapsed
-  useEffect(() => {
-    if (!booting || bootStart == null) return;
-    if (!arReady) return;
-
-    const elapsed = Date.now() - bootStart;
-    const remaining = Math.max(0, MIN_BOOT_MS - elapsed);
-    const t = window.setTimeout(() => {
-      setBooting(false);
-      setBootStart(null);
-    }, remaining);
-
-    return () => clearTimeout(t);
-  }, [booting, bootStart, arReady]);
-
-  // If booting has not reached arReady within STARTUP_TIMEOUT_MS, show fallback gesture button
-  useEffect(() => {
-    if (!booting || bootStart == null) {
-      setStartupNeedsGesture(false);
-      return;
-    }
-    if (arReady || initError) {
-      setStartupNeedsGesture(false);
-      return;
-    }
-
-    const t = window.setTimeout(() => {
-      if (!arReady && !initError) setStartupNeedsGesture(true);
-    }, STARTUP_TIMEOUT_MS);
-
-    return () => clearTimeout(t);
-  }, [booting, bootStart, arReady, initError]);
+  }, [cleanupAR]);
 
   return (
     <div className="ar-layer" style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }}>
       <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
 
-      {booting && !initError && !startupNeedsGesture && (
-        <div className="boot-overlay" style={{
+      {!arReady && !initError && (
+        <div className="permission-gate" style={{
           position: 'fixed',
           inset: 0,
-          zIndex: 350,
+          zIndex: 300,
           display: 'flex',
-          flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
           background: 'rgba(0,0,0,0.85)',
-          color: 'var(--hud-accent, #9be7ff)',
-          pointerEvents: 'none',
-          textAlign: 'center',
-          padding: '24px'
+          backdropFilter: 'blur(10px)'
         }}>
-          <div className="mono" style={{ fontSize: '0.9rem', letterSpacing: '0.14em', opacity: 0.95 }}>
-            <div style={{ marginBottom: '8px' }}>INIT RECON FIELD TOOL</div>
-            <div style={{ marginBottom: '6px' }}>OPTICAL CHANNEL OPENING...</div>
-            <div style={{ opacity: 0.85 }}>AWAITING CAMERA HANDSHAKE</div>
-          </div>
-        </div>
-      )}
-
-      {startupNeedsGesture && !initError && !arReady && (
-        <div className="boot-fallback" style={{
-          position: 'fixed',
-          inset: 0,
-          zIndex: 360,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          background: 'rgba(0,0,0,0.92)',
-          color: '#fff',
-          textAlign: 'center',
-          padding: '24px'
-        }}>
-          <div className="mono" style={{ fontSize: '1rem', letterSpacing: '0.12em', marginBottom: '12px' }}>CAMERA HANDSHAKE REQUIRED</div>
-          <div style={{ marginBottom: '18px', opacity: 0.9 }}>Browser requires manual optical access.</div>
           <button
-            onClick={() => {
-              setStartupNeedsGesture(false);
-              void startAR();
-            }}
+            onClick={startAR}
             className="mono"
             style={{
-              padding: '12px 24px',
+              padding: '16px 32px',
               background: 'transparent',
               border: '1px solid var(--hud-accent)',
               color: 'var(--hud-accent)',
-              cursor: 'pointer'
+              cursor: 'pointer',
+              fontSize: 'var(--text-base)',
+              letterSpacing: '0.1em'
             }}
           >
-            START FIELD TOOL
+            Initialize System
           </button>
         </div>
       )}
