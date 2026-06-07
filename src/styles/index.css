@@ -60,6 +60,11 @@ body {
   --hud-bg: rgba(0, 0, 0, 0.55);
   --hud-text: rgba(255, 255, 255, 0.9);
   --hud-text-dim: rgba(0, 242, 255, 0.6);
+  /* Readability helpers for bright outdoor conditions */
+  /* softer, more diffused shadow for outdoor readability */
+  --hud-text-shadow: 0 1px 0 rgba(0,0,0,0.68), 0 4px 18px rgba(0,0,0,0.45), 0 0 14px var(--hud-accent-glow);
+  --hud-contrast-panel: rgba(0, 0, 0, 0.30);
+  --hud-accent-strong: var(--hud-accent);
   --hud-transition: 400ms ease-out;
 }
 
