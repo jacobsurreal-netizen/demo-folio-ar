@@ -43,11 +43,22 @@
   font-size: 11px;
   letter-spacing: 0.14em;
   color: var(--hud-accent);
-  border: 1px solid var(--hud-accent);
-  background: rgba(0,0,0,0.35);
+  border: 1px solid var(--hud-accent-strong);
+  background: linear-gradient(180deg, rgba(0,0,0,0.24), rgba(0,0,0,0.34));
   border-radius: 4px;
   cursor: pointer;
   z-index: 999;
+  text-shadow: var(--hud-text-shadow);
+  box-shadow: 0 1px 6px rgba(0,0,0,0.6);
+}
+
+/* Ensure utility buttons retain framed styling in IR mode (match IR visual language) */
+[data-mode='IR'] .hud-utility-button {
+  border: 1px solid var(--hud-accent);
+  color: var(--hud-accent);
+  background: linear-gradient(180deg, rgba(0,0,0,0.18), rgba(0,0,0,0.30));
+  box-shadow: 0 2px 8px rgba(0,0,0,0.5), 0 0 10px var(--hud-accent-glow);
+  text-shadow: var(--hud-text-shadow);
 }
 
 .hud-shell {
@@ -68,7 +79,8 @@
   transition: opacity 240ms ease;
 }
 
-[data-mode='IR'][data-ar-ready='true'] .hud-ir-vignette {
+[data-mode='IR'][data-ar-ready='true'] .hud-ir-vignette,
+[data-ar-ready='true'] .hud-ir-vignette {
   opacity: 1;
   background:
     radial-gradient(
@@ -94,21 +106,26 @@
   letter-spacing: 0.2em;
   text-transform: uppercase;
   color: var(--hud-accent-dim);
+  /* improved outdoor readability */
+  text-shadow: var(--hud-text-shadow);
 }
 
 .hud-value {
   font-size: 10px;
   color: var(--hud-accent);
+  text-shadow: var(--hud-text-shadow);
 }
 
 .hud-badge {
   padding: 4px 8px;
-  border: 1px solid var(--hud-accent-dim);
-  background: var(--hud-accent-micro);
+  border: 1px solid var(--hud-accent);
+  background: linear-gradient(180deg, rgba(0,0,0,0.18), rgba(0,0,0,0.24));
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.2em;
   color: var(--hud-accent);
+  text-shadow: var(--hud-text-shadow);
+  box-shadow: 0 1px 6px rgba(0,0,0,0.6), 0 0 8px var(--hud-accent-glow);
 }
 
 /* ── Scanline Effect ── */
@@ -208,6 +225,8 @@
   width: 100%;
   height: 100%;
   display: block;
+  /* subtle drop-shadow + accent glow to keep reticle visible in bright light */
+  filter: drop-shadow(0 1px 3px rgba(0,0,0,0.6)) drop-shadow(0 0 8px var(--hud-accent-glow));
 }
 
 /* ── Reticle tracking state animations ── */
@@ -248,20 +267,26 @@
   font-size: 9px;
   letter-spacing: 0.3em;
   color: var(--hud-accent-dim);
+  text-shadow: var(--hud-text-shadow);
+  background: var(--hud-contrast-panel);
+  padding: 6px 10px;
+  border-radius: 6px;
+  display: inline-block;
 }
 
 .gateway-button {
   width: 100%;
   padding: 12px;
-  background: var(--hud-accent-micro);
-  border: 1px solid var(--hud-accent);
-  color: var(--hud-accent);
+  background: linear-gradient(180deg, rgba(0,0,0,0.18), rgba(0,0,0,0.28));
+  border: 1px solid var(--hud-accent-strong);
+  color: var(--hud-accent-strong);
   font-family: var(--font-mono);
   font-size: 10px;
   letter-spacing: 0.2em;
   cursor: pointer;
   pointer-events: auto;
   transition: background 0.2s ease, opacity 0.2s ease;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.48), 0 0 10px var(--hud-accent-glow);
 }
 
 .gateway-button:hover {
@@ -276,24 +301,24 @@
 /* ── IR Mode Specifics ── */
 [data-mode='IR'] .hud-label {
   color: var(--hud-accent);
-  text-shadow: 0 1px 0 rgba(0,0,0,0.6);
+  text-shadow: var(--hud-text-shadow);
 }
 
 [data-mode='IR'] .hud-value {
   color: var(--hud-accent);
-  text-shadow: 0 1px 0 rgba(0,0,0,0.6);
+  text-shadow: var(--hud-text-shadow);
 }
 
 [data-mode='IR'] .hud-badge {
   color: var(--hud-accent);
   border-color: var(--hud-accent);
-  background: rgba(0,0,0,0.18);
-  text-shadow: 0 1px 0 rgba(0,0,0,0.6);
+  background: linear-gradient(180deg, rgba(0,0,0,0.20), rgba(0,0,0,0.36));
+  text-shadow: var(--hud-text-shadow);
 }
 [data-mode='IR'] .gateway-button {
   border-color: var(--hud-accent);
   color: var(--hud-accent);
-  text-shadow: 0 1px 0 rgba(0,0,0,0.6);
+  text-shadow: var(--hud-text-shadow);
 }
 
 [data-mode='IR'] .hud-status-line {
@@ -303,7 +328,7 @@
 
 /* Reticle readability: subtle drop shadow on SVG elements in IR mode */
 [data-mode='IR'] .reticle-container svg {
-  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.6));
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.6)) drop-shadow(0 0 12px var(--hud-accent-glow));
 }
 
 /* ── Animations ── */
@@ -433,6 +458,10 @@
   font-size: 9px;
   letter-spacing: 0.16em;
   color: var(--hud-accent-dim);
+  text-shadow: var(--hud-text-shadow);
+  background: rgba(0,0,0,0.22);
+  padding: 4px 8px;
+  border-radius: 6px;
   pointer-events: none;
   text-transform: uppercase;
 }
@@ -440,6 +469,7 @@
 .waveform-label-percent {
   color: var(--hud-accent);
   font-weight: 700;
+  text-shadow: var(--hud-text-shadow);
 }
 
 .waveform-rail-svg {
@@ -474,6 +504,10 @@
 .waveform-ring-svg svg, .waveform-rail-svg svg {
   shape-rendering: geometricPrecision;
 }
+
+/* Slightly reinforce ring strokes for visibility in direct sunlight */
+.waveform-ring-bg { stroke-width: 1.8; stroke-linecap: round; }
+.waveform-ring-progress { stroke-width: 2.2; stroke-linecap: round; filter: drop-shadow(0 1px 4px rgba(0,0,0,0.55)) drop-shadow(0 0 6px var(--hud-accent-glow)); }
 
 /* Ring tick flicker animation (keeps center fixed) */
 .ring-tick {
