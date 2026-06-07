@@ -94,7 +94,7 @@ export function AnalysisPanel() {
   ];
 
   return (
-    <div className="telemetry-group" style={{ maxWidth: '80px', marginTop: '140px', marginLeft: '20px' }}>
+    <div className="telemetry-group" style={{ maxWidth: '80px', marginTop: '175px', marginLeft: '20px' }}>
       <span className="hud-label" style={{ opacity: 0.6, letterSpacing: '0.3em' }}>ANALYSIS</span>
       <div style={{ height: '1px', background: 'var(--hud-accent)', opacity: 0.3, margin: '4px 0' }} />
       {data.map((item) => (

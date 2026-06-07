@@ -234,7 +234,7 @@
 /* ── Bottom Bar ── */
 .hud-bottom-bar {
   position: absolute;
-  bottom: 84px; /* lifted to sit above frequency/resonance monitor */
+  bottom: 94px; /* lifted to sit above frequency/resonance monitor */
   left: 0;
   right: 0;
   padding: 32px 20px;

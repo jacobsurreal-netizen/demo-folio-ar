@@ -363,45 +363,19 @@ export function ARProvider() {
             <div style={{ marginTop: '12px', fontSize: '0.95rem', opacity: 0.9 }}>
               Scan ⧋ glyph on card to stabilize the signal.
             </div>
-
-            <div style={{ marginTop: '14px', display: 'flex', gap: '12px', justifyContent: 'center', alignItems: 'center' }}>
-              <a
-                href={AUTHOR_TRACE_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mono"
-                style={{ color: 'var(--hud-accent)', border: '1px solid transparent', textDecoration: 'underline', opacity: 0.95 }}
-              >
-                AUTHOR TRACE
-              </a>
-
-              <button
-                onClick={() => setHintOpen(true)}
-                aria-label="Field tool hint"
-                className="mono"
-                style={{
-                  padding: '8px 12px',
-                  background: 'transparent',
-                  border: '1px solid var(--hud-accent)',
-                  color: 'var(--hud-accent)',
-                  cursor: 'pointer',
-                  fontSize: '0.95rem'
-                }}
-              >
-                ?
-              </button>
-            </div>
           </div>
         </div>
       )}
 
       {hintOpen && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 410, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', pointerEvents: 'none' }}>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 'var(--z-overlay)', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', pointerEvents: 'none' }}>
           <div style={{ width: 'min(360px, 92%)', padding: '12px', background: 'rgba(6,8,10,0.92)', border: '1px solid rgba(255,255,255,0.06)', color: 'var(--hud-text)', fontFamily: 'var(--font-mono)', pointerEvents: 'auto', boxShadow: '0 6px 18px rgba(0,0,0,0.6)' }}>
-            <div style={{ fontSize: '0.82rem', letterSpacing: '0.12em', marginBottom: '8px' }}>FIELD USE:</div>
-            <pre style={{ whiteSpace: 'pre-wrap', margin: 0, fontSize: '0.82rem', opacity: 0.95, lineHeight: 1.3 }}>01 // allow optical camera access
-02 // align green ⧋ glyph in frame
-03 // hold until resonance lock</pre>
+            <div style={{ fontSize: '0.78rem', letterSpacing: '0.12em', marginBottom: '8px' }}>FIELD USE:</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', margin: 0, marginLeft: '20px' }}>
+              <div style={{ fontSize: '0.78rem', opacity: 0.95 }}>01 // allow optical camera access</div>
+              <div style={{ fontSize: '0.78rem', opacity: 0.95 }}>02 // align green ⧋ glyph in frame</div>
+              <div style={{ fontSize: '0.78rem', opacity: 0.95 }}>03 // hold until resonance lock</div>
+            </div>
             <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'flex-end' }}>
               <button onClick={() => setHintOpen(false)} className="mono" style={{ padding: '6px 10px', background: 'transparent', border: '1px solid var(--hud-accent)', color: 'var(--hud-accent)', cursor: 'pointer' }}>CLOSE</button>
             </div>

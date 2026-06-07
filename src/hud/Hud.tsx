@@ -119,7 +119,7 @@ export function Hud() {
             onClick={() => window.dispatchEvent(new Event('recon-open-hint'))}
             aria-label="Field hint"
             className="hud-utility-button"
-            style={{ position: 'absolute', top: '28px', left: '18px', pointerEvents: 'auto' }}
+            style={{ position: 'absolute', top: '92px', left: '18px', pointerEvents: 'auto' }}
           >
             ?
           </button>
@@ -129,7 +129,7 @@ export function Hud() {
             target="_blank"
             rel="noopener noreferrer"
             className="hud-utility-button"
-            style={{ position: 'absolute', top: '28px', right: '18px', pointerEvents: 'auto', textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            style={{ position: 'absolute', top: '150px', right: '18px', pointerEvents: 'auto', textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           >
             AUTHOR TRACE
           </a>
@@ -144,7 +144,7 @@ export function Hud() {
             className="hud-badge"
             style={{
               position: 'absolute',
-              top: '120px',
+              top: '90px',
               right: '20px',
               cursor: 'pointer',
               border: '1px solid var(--hud-accent)',

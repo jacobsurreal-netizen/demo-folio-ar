@@ -109,6 +109,8 @@ export function WaveformProgress() {
         ['--rm-bg' as any]: palette.bg,
         opacity: visible ? 1 : 0.12,
         pointerEvents: 'none',
+        // Layout override: nudge the waveform monitor 50px lower (was controlled by CSS bottom:116px)
+        bottom: '66px',
       }}
     >
       <svg className="waveform-ring-svg" viewBox="0 0 40 40" width="40" height="40" xmlns="http://www.w3.org/2000/svg">
