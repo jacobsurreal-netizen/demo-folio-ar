@@ -114,6 +114,25 @@ export function Hud() {
             }px)`
           }}
         >
+          {/* Persistent utility controls: ? (upper-left) and AUTHOR TRACE (upper-right) */}
+          <button
+            onClick={() => window.dispatchEvent(new Event('recon-open-hint'))}
+            aria-label="Field hint"
+            className="hud-utility-button"
+            style={{ position: 'absolute', top: '28px', left: '18px', pointerEvents: 'auto' }}
+          >
+            ?
+          </button>
+
+          <a
+            href="https://www.instagram.com/jacob_surreal/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hud-utility-button"
+            style={{ position: 'absolute', top: '28px', right: '18px', pointerEvents: 'auto', textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          >
+            AUTHOR TRACE
+          </a>
           {/* Waveform/progress HUD sits visually above the bottom action slot. Non-interactive. */}
           <WaveformProgress />
 

@@ -36,6 +36,20 @@
   pointer-events: auto;
 }
 
+/* Small tactical utility button used in the HUD top corners */
+.hud-utility-button {
+  padding: 6px 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  color: var(--hud-accent);
+  border: 1px solid var(--hud-accent);
+  background: rgba(0,0,0,0.35);
+  border-radius: 4px;
+  cursor: pointer;
+  z-index: 999;
+}
+
 .hud-shell {
   position: relative;
   width: 100%;
@@ -220,7 +234,7 @@
 /* ── Bottom Bar ── */
 .hud-bottom-bar {
   position: absolute;
-  bottom: 0;
+  bottom: 84px; /* lifted to sit above frequency/resonance monitor */
   left: 0;
   right: 0;
   padding: 32px 20px;
