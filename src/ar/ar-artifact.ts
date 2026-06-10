@@ -17,6 +17,8 @@ import { arStore } from '../state/store';
 import { createResonanceAura, updateResonanceAura, disposeResonanceAura } from './ar-aura';
 import type { ResonanceAuraHandle } from './ar-aura';
 import { createGravityPulseRings, updateGravityPulseRings, disposeGravityPulseRings } from './ar-pulse-rings';
+import { createTokenSurfaceResponse, updateTokenSurfaceResponse, disposeTokenSurfaceResponse } from './ar-token-surface';
+import type { TokenSurfaceHandle } from './ar-token-surface';
 
 /** Confirmed GLB mesh names — do not apply orb pass to other meshes. */
 export const ARTIFACT_MESH_TURQUOISE_ORB = 'TurquoiseOrb';
@@ -342,6 +344,14 @@ export async function loadArtifact(parent: THREE.Group): Promise<ArtifactHandle>
           _ringsHandle = null;
         }
 
+        // Create token surface response attached to smoothingRoot
+        let _tokenHandle: TokenSurfaceHandle | null = null;
+        try {
+          _tokenHandle = createTokenSurfaceResponse(smoothingRoot);
+        } catch {
+          _tokenHandle = null;
+        }
+
         // Smoothing state and reusable temporaries (avoid allocations in the render loop)
         const smoothedWorldPos = new THREE.Vector3();
         const smoothedWorldQuat = new THREE.Quaternion();
@@ -441,6 +451,17 @@ export async function loadArtifact(parent: THREE.Group): Promise<ArtifactHandle>
   // non-fatal
 }
 
+            // Update token surface (independent of pulseTarget presence)
+            const tokenElapsedSeconds = (performance.now() - pulseStart) * 0.001;
+const tokenHudMode = arStore.getState().hudMode;
+
+if (_tokenHandle) {
+  updateTokenSurfaceResponse(_tokenHandle, tokenElapsedSeconds, {
+    hudMode: tokenHudMode,
+    resonanceState: resonance,
+  });
+}
+
               // One-time CONFIRMED spike (subtle): schedule a short spike when state first enters CONFIRMED
               if (resonance === 'CONFIRMED' && confirmedAt === null) {
                 confirmedAt = performance.now();
@@ -518,6 +539,16 @@ export async function loadArtifact(parent: THREE.Group): Promise<ArtifactHandle>
       console.warn('[AR] Failed to dispose gravity pulse rings', err);
     } finally {
       _ringsHandle = null;
+    }
+  }
+  // Dispose token surface if present
+  if (_tokenHandle) {
+    try {
+      disposeTokenSurfaceResponse(_tokenHandle);
+    } catch (err) {
+      console.warn('[AR] Failed to dispose token surface', err);
+    } finally {
+      _tokenHandle = null;
     }
   }
 
