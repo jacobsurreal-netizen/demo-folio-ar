@@ -15,7 +15,8 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { ARTIFACT_CONFIG } from './ar-config';
 import { arStore } from '../state/store';
 import { createResonanceAura, updateResonanceAura, disposeResonanceAura } from './ar-aura';
-import type { ResonanceAuraHandle } from "./ar-aura";
+import type { ResonanceAuraHandle } from './ar-aura';
+import { createGravityPulseRings, updateGravityPulseRings, disposeGravityPulseRings } from './ar-pulse-rings';
 
 /** Confirmed GLB mesh names — do not apply orb pass to other meshes. */
 export const ARTIFACT_MESH_TURQUOISE_ORB = 'TurquoiseOrb';
@@ -332,6 +333,15 @@ export async function loadArtifact(parent: THREE.Group): Promise<ArtifactHandle>
           _auraHandle = null;
         }
 
+        // Create gravity pulse rings attached to smoothingRoot
+        let _ringsHandle: ReturnType<typeof createGravityPulseRings> | null = null;
+        try {
+          _ringsHandle = createGravityPulseRings(smoothingRoot);
+        } catch (err) {
+          console.warn('[AR] Failed to create gravity pulse rings', err);
+          _ringsHandle = null;
+        }
+
         // Smoothing state and reusable temporaries (avoid allocations in the render loop)
         const smoothedWorldPos = new THREE.Vector3();
         const smoothedWorldQuat = new THREE.Quaternion();
@@ -420,6 +430,17 @@ export async function loadArtifact(parent: THREE.Group): Promise<ArtifactHandle>
   console.warn("[AR] Failed to dispose resonance aura", err);
 }
 
+              try {
+  if (_ringsHandle) {
+    updateGravityPulseRings(_ringsHandle, elapsed, {
+      hudMode,
+      resonanceState: resonance,
+    });
+  }
+} catch {
+  // non-fatal
+}
+
               // One-time CONFIRMED spike (subtle): schedule a short spike when state first enters CONFIRMED
               if (resonance === 'CONFIRMED' && confirmedAt === null) {
                 confirmedAt = performance.now();
@@ -487,6 +508,16 @@ export async function loadArtifact(parent: THREE.Group): Promise<ArtifactHandle>
       console.warn("[AR] Failed to dispose resonance aura", err);
     } finally {
       _auraHandle = null;
+    }
+  }
+  // Dispose pulse rings if present
+  if (_ringsHandle) {
+    try {
+      disposeGravityPulseRings(_ringsHandle);
+    } catch (err) {
+      console.warn('[AR] Failed to dispose gravity pulse rings', err);
+    } finally {
+      _ringsHandle = null;
     }
   }
 
