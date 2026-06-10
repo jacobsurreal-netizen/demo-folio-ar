@@ -14,6 +14,8 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { ARTIFACT_CONFIG } from './ar-config';
 import { arStore } from '../state/store';
+import { createResonanceAura, updateResonanceAura, disposeResonanceAura } from './ar-aura';
+import type { ResonanceAuraHandle } from "./ar-aura";
 
 /** Confirmed GLB mesh names — do not apply orb pass to other meshes. */
 export const ARTIFACT_MESH_TURQUOISE_ORB = 'TurquoiseOrb';
@@ -317,6 +319,19 @@ export async function loadArtifact(parent: THREE.Group): Promise<ArtifactHandle>
         parent.add(smoothingRoot);
         smoothingRoot.add(model);
 
+        // Create resonance aura attached to the smoothing root (inherits marker smoothing)
+        let _auraHandle: ResonanceAuraHandle | null = null;
+        try {
+          _auraHandle = createResonanceAura(smoothingRoot);
+
+            console.info("[R4] Resonance aura attached to smoothingRoot", {
+    smoothingRootChildren: smoothingRoot.children.map((child) => child.name || child.type),
+  });
+        } catch (err) {
+          console.warn('[AR] Failed to create resonance aura', err);
+          _auraHandle = null;
+        }
+
         // Smoothing state and reusable temporaries (avoid allocations in the render loop)
         const smoothedWorldPos = new THREE.Vector3();
         const smoothedWorldQuat = new THREE.Quaternion();
@@ -398,6 +413,13 @@ export async function loadArtifact(parent: THREE.Group): Promise<ArtifactHandle>
               const hudMode = arStore.getState().hudMode;
               pulseTurquoiseOrb(pulseTarget, elapsed, { pulseAmount, pulseSpeed, stabilizationProgress: progress, resonanceState: resonance, hudMode });
 
+              // Update resonance aura (use same elapsed clock)
+              try {
+                if (_auraHandle) updateResonanceAura(_auraHandle, elapsed, { hudMode, resonanceState: resonance });
+              } catch (err) {
+  console.warn("[AR] Failed to dispose resonance aura", err);
+}
+
               // One-time CONFIRMED spike (subtle): schedule a short spike when state first enters CONFIRMED
               if (resonance === 'CONFIRMED' && confirmedAt === null) {
                 confirmedAt = performance.now();
@@ -457,22 +479,34 @@ export async function loadArtifact(parent: THREE.Group): Promise<ArtifactHandle>
           },
 
           dispose() {
-            // Remove smoothing root which contains the model
-            try {
-              parent.remove(smoothingRoot);
-            } catch {}
-            model.traverse((child) => {
-              if (child instanceof THREE.Mesh) {
-                child.geometry?.dispose();
-                if (Array.isArray(child.material)) {
-                  child.material.forEach((mat) => mat.dispose());
-                } else {
-                  child.material?.dispose();
-                }
-              }
-            });
-            replacedMaterials.forEach((mat) => mat.dispose());
-          },
+  // Dispose aura if present
+  if (_auraHandle) {
+    try {
+      disposeResonanceAura(_auraHandle);
+    } catch (err) {
+      console.warn("[AR] Failed to dispose resonance aura", err);
+    } finally {
+      _auraHandle = null;
+    }
+  }
+
+  // Remove smoothing root which contains the model
+  parent.remove(smoothingRoot);
+
+  model.traverse((child) => {
+    if (child instanceof THREE.Mesh) {
+      child.geometry?.dispose();
+
+      if (Array.isArray(child.material)) {
+        child.material.forEach((mat) => mat.dispose());
+      } else {
+        child.material?.dispose();
+      }
+    }
+  });
+
+  replacedMaterials.forEach((mat) => mat.dispose());
+},
         });
       },
 
