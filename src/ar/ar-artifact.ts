@@ -58,71 +58,6 @@ const IR_PEAK = new THREE.Color(0xffd66b);
 const ARTIFACT_FIELD_Z_OFFSET = 0.35;
 const ARTIFACT_FIELD_SCALE = 0.75;
 
-// Invisible depth proxy used to let the artifact occlude token-surface overlays.
-// It writes only to the depth buffer, not to color, so it is not visible by itself.
-type ArtifactDepthOccluderHandle = {
-  mesh: THREE.Mesh<THREE.SphereGeometry, THREE.MeshBasicMaterial>;
-  geometry: THREE.SphereGeometry;
-  material: THREE.MeshBasicMaterial;
-};
-
-// Tune these if the token mycelium still leaks through the artifact.
-// Larger radius = stronger/wider occlusion over the token surface pattern.
-const ARTIFACT_DEPTH_OCCLUDER_RADIUS_MULTIPLIER = 0.58;
-const ARTIFACT_DEPTH_OCCLUDER_MIN_RADIUS = 0.18;
-const ARTIFACT_DEPTH_OCCLUDER_OFFSET = new THREE.Vector3(0, 0, 0);
-
-function createArtifactDepthOccluder(
-  model: THREE.Object3D,
-  parent: THREE.Object3D,
-): ArtifactDepthOccluderHandle {
-  model.updateWorldMatrix(true, true);
-
-  const bounds = new THREE.Box3().setFromObject(model);
-  const sphere = bounds.getBoundingSphere(new THREE.Sphere());
-
-  const center = Number.isFinite(sphere.radius)
-    ? parent.worldToLocal(sphere.center.clone())
-    : model.position.clone();
-
-  const radiusBase = Number.isFinite(sphere.radius) && sphere.radius > 0
-    ? sphere.radius
-    : ARTIFACT_DEPTH_OCCLUDER_MIN_RADIUS;
-
-  const radius = Math.max(
-    ARTIFACT_DEPTH_OCCLUDER_MIN_RADIUS,
-    radiusBase * ARTIFACT_DEPTH_OCCLUDER_RADIUS_MULTIPLIER,
-  );
-
-  const geometry = new THREE.SphereGeometry(radius, 32, 16);
-  const material = new THREE.MeshBasicMaterial({
-    depthWrite: true,
-    depthTest: true,
-    transparent: false,
-  });
-
-  material.colorWrite = false;
-  material.toneMapped = false;
-
-  const mesh = new THREE.Mesh(geometry, material);
-  mesh.name = 'artifact-depth-occluder';
-  mesh.position.copy(center).add(ARTIFACT_DEPTH_OCCLUDER_OFFSET);
-  // Render after the visible opaque artifact meshes, but before transparent token-surface overlays.
-  // This lets the artifact keep its color while the occluder adds reliable depth.
-  mesh.renderOrder = 100;
-
-  parent.add(mesh);
-
-  return { mesh, geometry, material };
-}
-
-function disposeArtifactDepthOccluder(handle: ArtifactDepthOccluderHandle): void {
-  handle.mesh.parent?.remove(handle.mesh);
-  handle.geometry.dispose();
-  handle.material.dispose();
-}
-
-
 /** Handle returned by loadArtifact for per-frame updates */
 export interface ArtifactHandle {
   /** Call every frame inside the render loop */
@@ -392,39 +327,25 @@ export async function loadArtifact(parent: THREE.Group): Promise<ArtifactHandle>
         smoothingRoot.name = 'artifact-smoothing-root';
         parent.add(smoothingRoot);
 
-        // Artifact field root separates the hovering artifact field from the marker-bound token surface.
-        // Token response remains attached to smoothingRoot; model/aura/rings live under this lifted root.
+        // Separate marker/card response from the floating artifact field.
+        // Token surface stays directly under smoothingRoot; model + field FX live in a lifted root.
         const artifactFieldRoot = new THREE.Group();
         artifactFieldRoot.name = 'artifact-field-root';
-        artifactFieldRoot.position.set(0, 0, ARTIFACT_FIELD_Z_OFFSET);
+        artifactFieldRoot.position.z = ARTIFACT_FIELD_Z_OFFSET;
         artifactFieldRoot.scale.setScalar(ARTIFACT_FIELD_SCALE);
         smoothingRoot.add(artifactFieldRoot);
-
         artifactFieldRoot.add(model);
 
-        // Create an invisible artifact depth proxy so token-surface overlays can be occluded by the artifact.
-        let _depthOccluderHandle: ArtifactDepthOccluderHandle | null = null;
-        try {
-          _depthOccluderHandle = createArtifactDepthOccluder(model, artifactFieldRoot);
-        } catch (err) {
-          console.warn('[AR] Failed to create artifact depth occluder', err);
-          _depthOccluderHandle = null;
-        }
-
-        // Create resonance aura attached to the lifted artifact field root
+        // Create resonance aura attached to the artifact field root (inherits hover separation)
         let _auraHandle: ResonanceAuraHandle | null = null;
         try {
           _auraHandle = createResonanceAura(artifactFieldRoot);
-
-            console.info("[R4] Resonance aura attached to artifactFieldRoot", {
-              artifactFieldRootChildren: artifactFieldRoot.children.map((child) => child.name || child.type),
-            });
         } catch (err) {
           console.warn('[AR] Failed to create resonance aura', err);
           _auraHandle = null;
         }
 
-        // Create gravity pulse rings attached to the lifted artifact field root
+        // Create gravity pulse rings attached to artifactFieldRoot
         let _ringsHandle: ReturnType<typeof createGravityPulseRings> | null = null;
         try {
           _ringsHandle = createGravityPulseRings(artifactFieldRoot);
@@ -433,7 +354,7 @@ export async function loadArtifact(parent: THREE.Group): Promise<ArtifactHandle>
           _ringsHandle = null;
         }
 
-        // Create token surface response attached to smoothingRoot (marker-bound, not artifact-field-bound)
+        // Create token surface response attached to smoothingRoot / marker layer
         let _tokenHandle: TokenSurfaceHandle | null = null;
         try {
           _tokenHandle = createTokenSurfaceResponse(smoothingRoot);
@@ -526,30 +447,31 @@ export async function loadArtifact(parent: THREE.Group): Promise<ArtifactHandle>
               try {
                 if (_auraHandle) updateResonanceAura(_auraHandle, elapsed, { hudMode, resonanceState: resonance });
               } catch (err) {
-  console.warn("[AR] Failed to dispose resonance aura", err);
-}
+                console.warn('[AR] Failed to update resonance aura', err);
+              }
 
               try {
-  if (_ringsHandle) {
-    updateGravityPulseRings(_ringsHandle, elapsed, {
-      hudMode,
-      resonanceState: resonance,
-    });
-  }
-} catch {
-  // non-fatal
-}
+                if (_ringsHandle) {
+                  updateGravityPulseRings(_ringsHandle, elapsed, {
+                    hudMode,
+                    resonanceState: resonance,
+                  });
+                }
+              } catch {
+                // non-fatal
+              }
 
-            // Update token surface (independent of pulseTarget presence)
-            const tokenElapsedSeconds = (performance.now() - pulseStart) * 0.001;
-const tokenHudMode = arStore.getState().hudMode;
+              // Update token surface (independent of pulseTarget presence)
+              const tokenElapsedSeconds = (performance.now() - pulseStart) * 0.001;
+              const tokenHudMode = arStore.getState().hudMode;
 
-if (_tokenHandle) {
-  updateTokenSurfaceResponse(_tokenHandle, tokenElapsedSeconds, {
-    hudMode: tokenHudMode,
-    resonanceState: resonance,
-  });
-}
+              if (_tokenHandle) {
+                updateTokenSurfaceResponse(_tokenHandle, tokenElapsedSeconds, {
+                  hudMode: tokenHudMode,
+                  resonanceState: resonance,
+                  stabilizationProgress: progress,
+                });
+              }
 
               // One-time CONFIRMED spike (subtle): schedule a short spike when state first enters CONFIRMED
               if (resonance === 'CONFIRMED' && confirmedAt === null) {
@@ -615,7 +537,7 @@ if (_tokenHandle) {
     try {
       disposeResonanceAura(_auraHandle);
     } catch (err) {
-      console.warn("[AR] Failed to dispose resonance aura", err);
+      console.warn('[AR] Failed to dispose resonance aura', err);
     } finally {
       _auraHandle = null;
     }
@@ -641,18 +563,7 @@ if (_tokenHandle) {
     }
   }
 
-  // Dispose invisible artifact depth occluder if present
-  if (_depthOccluderHandle) {
-    try {
-      disposeArtifactDepthOccluder(_depthOccluderHandle);
-    } catch (err) {
-      console.warn('[AR] Failed to dispose artifact depth occluder', err);
-    } finally {
-      _depthOccluderHandle = null;
-    }
-  }
-
-  // Remove smoothing root which contains the model
+  // Remove smoothing root which contains token surface and artifact field
   parent.remove(smoothingRoot);
 
   model.traverse((child) => {
