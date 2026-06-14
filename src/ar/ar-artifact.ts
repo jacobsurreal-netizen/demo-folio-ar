@@ -52,6 +52,71 @@ const ORB_PULSE_PROFILE_STABLE = {
 const COLOR_PEAK = new THREE.Color(0xd8ffff);
 const IR_PEAK = new THREE.Color(0xffd66b);
 
+// Invisible depth proxy used to let the artifact occlude token-surface overlays.
+// It writes only to the depth buffer, not to color, so it is not visible by itself.
+type ArtifactDepthOccluderHandle = {
+  mesh: THREE.Mesh<THREE.SphereGeometry, THREE.MeshBasicMaterial>;
+  geometry: THREE.SphereGeometry;
+  material: THREE.MeshBasicMaterial;
+};
+
+// Tune these if the token mycelium still leaks through the artifact.
+// Larger radius = stronger/wider occlusion over the token surface pattern.
+const ARTIFACT_DEPTH_OCCLUDER_RADIUS_MULTIPLIER = 0.58;
+const ARTIFACT_DEPTH_OCCLUDER_MIN_RADIUS = 0.18;
+const ARTIFACT_DEPTH_OCCLUDER_OFFSET = new THREE.Vector3(0, 0, 0);
+
+function createArtifactDepthOccluder(
+  model: THREE.Object3D,
+  parent: THREE.Object3D,
+): ArtifactDepthOccluderHandle {
+  model.updateWorldMatrix(true, true);
+
+  const bounds = new THREE.Box3().setFromObject(model);
+  const sphere = bounds.getBoundingSphere(new THREE.Sphere());
+
+  const center = Number.isFinite(sphere.radius)
+    ? parent.worldToLocal(sphere.center.clone())
+    : model.position.clone();
+
+  const radiusBase = Number.isFinite(sphere.radius) && sphere.radius > 0
+    ? sphere.radius
+    : ARTIFACT_DEPTH_OCCLUDER_MIN_RADIUS;
+
+  const radius = Math.max(
+    ARTIFACT_DEPTH_OCCLUDER_MIN_RADIUS,
+    radiusBase * ARTIFACT_DEPTH_OCCLUDER_RADIUS_MULTIPLIER,
+  );
+
+  const geometry = new THREE.SphereGeometry(radius, 32, 16);
+  const material = new THREE.MeshBasicMaterial({
+    depthWrite: true,
+    depthTest: true,
+    transparent: false,
+  });
+
+  material.colorWrite = false;
+  material.toneMapped = false;
+
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.name = 'artifact-depth-occluder';
+  mesh.position.copy(center).add(ARTIFACT_DEPTH_OCCLUDER_OFFSET);
+  // Render after the visible opaque artifact meshes, but before transparent token-surface overlays.
+  // This lets the artifact keep its color while the occluder adds reliable depth.
+  mesh.renderOrder = 100;
+
+  parent.add(mesh);
+
+  return { mesh, geometry, material };
+}
+
+function disposeArtifactDepthOccluder(handle: ArtifactDepthOccluderHandle): void {
+  handle.mesh.parent?.remove(handle.mesh);
+  handle.geometry.dispose();
+  handle.material.dispose();
+}
+
+
 /** Handle returned by loadArtifact for per-frame updates */
 export interface ArtifactHandle {
   /** Call every frame inside the render loop */
@@ -322,6 +387,15 @@ export async function loadArtifact(parent: THREE.Group): Promise<ArtifactHandle>
         parent.add(smoothingRoot);
         smoothingRoot.add(model);
 
+        // Create an invisible artifact depth proxy so token-surface overlays can be occluded by the artifact.
+        let _depthOccluderHandle: ArtifactDepthOccluderHandle | null = null;
+        try {
+          _depthOccluderHandle = createArtifactDepthOccluder(model, smoothingRoot);
+        } catch (err) {
+          console.warn('[AR] Failed to create artifact depth occluder', err);
+          _depthOccluderHandle = null;
+        }
+
         // Create resonance aura attached to the smoothing root (inherits marker smoothing)
         let _auraHandle: ResonanceAuraHandle | null = null;
         try {
@@ -549,6 +623,17 @@ if (_tokenHandle) {
       console.warn('[AR] Failed to dispose token surface', err);
     } finally {
       _tokenHandle = null;
+    }
+  }
+
+  // Dispose invisible artifact depth occluder if present
+  if (_depthOccluderHandle) {
+    try {
+      disposeArtifactDepthOccluder(_depthOccluderHandle);
+    } catch (err) {
+      console.warn('[AR] Failed to dispose artifact depth occluder', err);
+    } finally {
+      _depthOccluderHandle = null;
     }
   }
 
