@@ -52,6 +52,12 @@ const ORB_PULSE_PROFILE_STABLE = {
 const COLOR_PEAK = new THREE.Color(0xd8ffff);
 const IR_PEAK = new THREE.Color(0xffd66b);
 
+// Artifact hover staging.
+// Token surface response stays marker-bound under smoothingRoot,
+// while the visible artifact field is lifted into its own local hover root.
+const ARTIFACT_FIELD_Z_OFFSET = 0.35;
+const ARTIFACT_FIELD_SCALE = 0.75;
+
 // Invisible depth proxy used to let the artifact occlude token-surface overlays.
 // It writes only to the depth buffer, not to color, so it is not visible by itself.
 type ArtifactDepthOccluderHandle = {
@@ -385,40 +391,49 @@ export async function loadArtifact(parent: THREE.Group): Promise<ArtifactHandle>
         const smoothingRoot = new THREE.Group();
         smoothingRoot.name = 'artifact-smoothing-root';
         parent.add(smoothingRoot);
-        smoothingRoot.add(model);
+
+        // Artifact field root separates the hovering artifact field from the marker-bound token surface.
+        // Token response remains attached to smoothingRoot; model/aura/rings live under this lifted root.
+        const artifactFieldRoot = new THREE.Group();
+        artifactFieldRoot.name = 'artifact-field-root';
+        artifactFieldRoot.position.set(0, 0, ARTIFACT_FIELD_Z_OFFSET);
+        artifactFieldRoot.scale.setScalar(ARTIFACT_FIELD_SCALE);
+        smoothingRoot.add(artifactFieldRoot);
+
+        artifactFieldRoot.add(model);
 
         // Create an invisible artifact depth proxy so token-surface overlays can be occluded by the artifact.
         let _depthOccluderHandle: ArtifactDepthOccluderHandle | null = null;
         try {
-          _depthOccluderHandle = createArtifactDepthOccluder(model, smoothingRoot);
+          _depthOccluderHandle = createArtifactDepthOccluder(model, artifactFieldRoot);
         } catch (err) {
           console.warn('[AR] Failed to create artifact depth occluder', err);
           _depthOccluderHandle = null;
         }
 
-        // Create resonance aura attached to the smoothing root (inherits marker smoothing)
+        // Create resonance aura attached to the lifted artifact field root
         let _auraHandle: ResonanceAuraHandle | null = null;
         try {
-          _auraHandle = createResonanceAura(smoothingRoot);
+          _auraHandle = createResonanceAura(artifactFieldRoot);
 
-            console.info("[R4] Resonance aura attached to smoothingRoot", {
-    smoothingRootChildren: smoothingRoot.children.map((child) => child.name || child.type),
-  });
+            console.info("[R4] Resonance aura attached to artifactFieldRoot", {
+              artifactFieldRootChildren: artifactFieldRoot.children.map((child) => child.name || child.type),
+            });
         } catch (err) {
           console.warn('[AR] Failed to create resonance aura', err);
           _auraHandle = null;
         }
 
-        // Create gravity pulse rings attached to smoothingRoot
+        // Create gravity pulse rings attached to the lifted artifact field root
         let _ringsHandle: ReturnType<typeof createGravityPulseRings> | null = null;
         try {
-          _ringsHandle = createGravityPulseRings(smoothingRoot);
+          _ringsHandle = createGravityPulseRings(artifactFieldRoot);
         } catch (err) {
           console.warn('[AR] Failed to create gravity pulse rings', err);
           _ringsHandle = null;
         }
 
-        // Create token surface response attached to smoothingRoot
+        // Create token surface response attached to smoothingRoot (marker-bound, not artifact-field-bound)
         let _tokenHandle: TokenSurfaceHandle | null = null;
         try {
           _tokenHandle = createTokenSurfaceResponse(smoothingRoot);
