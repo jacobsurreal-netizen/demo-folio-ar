@@ -7,7 +7,50 @@ export type GravityPulseRingsHandle = {
     mats: THREE.SpriteMaterial[];
     texs: THREE.CanvasTexture[];
   };
+  _reveal: {
+    active: boolean;
+    startedAt: number;
+    lastElapsed: number | null;
+    visibility: number;
+  };
 };
+
+// R4 tuning block — marker/artifact-space placement.
+// Keep these as separate axis assignments in createGravityPulseRings for easy manual tuning.
+const GRAVITY_RINGS_ROOT_OFFSET_X = 0;
+const GRAVITY_RINGS_ROOT_OFFSET_Y = 0.2;
+const GRAVITY_RINGS_ROOT_OFFSET_Z = 0;
+
+// Local micro-offset for all ring sprites inside the root.
+// Useful when root placement is correct, but the pulse center needs a tiny nudge.
+const GRAVITY_RING_CENTER_OFFSET_X = 0;
+const GRAVITY_RING_CENTER_OFFSET_Y = 0.02;
+const GRAVITY_RING_CENTER_OFFSET_Z = 0;
+const GRAVITY_RING_LAYER_Z_STEP = 0.006;
+
+// Outward-only pulse behavior.
+// The rings no longer breathe back inward. They expand from center, fade out,
+// then restart invisibly from the center in an infinite loop.
+const GRAVITY_RING_COUNT = 3;
+const GRAVITY_RING_MIN_SCALE = 0.28;
+const GRAVITY_RING_MAX_SCALE = 2.85;
+const GRAVITY_RING_PULSE_DURATION_SECONDS = 3.35;
+const GRAVITY_RING_STAGGER_SECONDS = 0.72;
+const GRAVITY_RING_FADE_IN_END = 0.08;
+const GRAVITY_RING_FADE_OUT_START = 0.42;
+const GRAVITY_RING_MAX_OPACITY = 0.2;
+const GRAVITY_RING_OPACITY_FALLOFF_PER_RING = 0.08;
+
+// Reveal dramaturgy.
+// Rings stay invisible after marker lock and begin only once resonance is confirmed.
+// On each CONFIRMED transition the outward pulse clock restarts from center.
+const GRAVITY_RING_REVEAL_REQUIRE_CONFIRMED = true;
+const GRAVITY_RING_REVEAL_FADE_IN_SECONDS = 0.85;
+const GRAVITY_RING_REVEAL_FADE_OUT_SECONDS = 0.22;
+
+// Shape tuning. Values above 1 stretch the sprite on that axis.
+const GRAVITY_RING_AXIS_SCALE_X = 1.0;
+const GRAVITY_RING_AXIS_SCALE_Y = 1.0;
 
 function hexToRgba(hex: string, alpha: number): string {
   const normalized = hex.replace('#', '').trim();
@@ -29,6 +72,27 @@ function hexToRgba(hex: string, alpha: number): string {
   const b = value & 255;
 
   return `rgba(${r},${g},${b},${alpha})`;
+}
+
+function clamp01(value: number): number {
+  return Math.min(1, Math.max(0, value));
+}
+
+function smoothstep(edge0: number, edge1: number, value: number): number {
+  if (edge0 === edge1) return value < edge0 ? 0 : 1;
+
+  const x = clamp01((value - edge0) / (edge1 - edge0));
+  return x * x * (3 - 2 * x);
+}
+
+function easeOutCubic(value: number): number {
+  const x = clamp01(value);
+  return 1 - Math.pow(1 - x, 3);
+}
+
+function isGravityRingsRevealActive(resonanceState?: string): boolean {
+  if (!GRAVITY_RING_REVEAL_REQUIRE_CONFIRMED) return true;
+  return resonanceState === 'CONFIRMED';
 }
 
 function createRingTexture(size = 256, color = '#ffffff', thickness = 0.12): HTMLCanvasElement {
@@ -67,12 +131,15 @@ export function createGravityPulseRings(parent: THREE.Object3D): GravityPulseRin
   const root = new THREE.Group();
   root.name = 'gravity-pulse-rings-root';
 
-  const ringCount = 3;
+  root.position.x = GRAVITY_RINGS_ROOT_OFFSET_X;
+  root.position.y = GRAVITY_RINGS_ROOT_OFFSET_Y;
+  root.position.z = GRAVITY_RINGS_ROOT_OFFSET_Z;
+
   const rings: THREE.Sprite[] = [];
   const mats: THREE.SpriteMaterial[] = [];
   const texs: THREE.CanvasTexture[] = [];
 
-  for (let i = 0; i < ringCount; i++) {
+  for (let i = 0; i < GRAVITY_RING_COUNT; i++) {
     const tex = new THREE.CanvasTexture(createRingTexture(256, '#ffffff', 0.12));
     tex.needsUpdate = true;
     texs.push(tex);
@@ -84,7 +151,7 @@ export function createGravityPulseRings(parent: THREE.Object3D): GravityPulseRin
       depthTest: false,
       toneMapped: false,
       blending: THREE.AdditiveBlending,
-      opacity: 0.18,
+      opacity: 0,
       color: new THREE.Color(0x06b6d4),
     });
     mats.push(mat);
@@ -92,10 +159,15 @@ export function createGravityPulseRings(parent: THREE.Object3D): GravityPulseRin
     const sprite = new THREE.Sprite(mat);
     sprite.name = `gravity-pulse-ring-${i}`;
     sprite.renderOrder = 9000 + i;
-    sprite.position.set(0, 0.02 + i * 0.01, 0);
+    sprite.position.x = GRAVITY_RING_CENTER_OFFSET_X;
+    sprite.position.y = GRAVITY_RING_CENTER_OFFSET_Y;
+    sprite.position.z = GRAVITY_RING_CENTER_OFFSET_Z + i * GRAVITY_RING_LAYER_Z_STEP;
 
-    const baseScale = 1.2 + i * 0.8;
-    sprite.scale.set(baseScale, baseScale, 1);
+    sprite.scale.set(
+      GRAVITY_RING_MIN_SCALE * GRAVITY_RING_AXIS_SCALE_X,
+      GRAVITY_RING_MIN_SCALE * GRAVITY_RING_AXIS_SCALE_Y,
+      1,
+    );
 
     root.add(sprite);
     rings.push(sprite);
@@ -103,7 +175,17 @@ export function createGravityPulseRings(parent: THREE.Object3D): GravityPulseRin
 
   parent.add(root);
 
-  return { root, rings, _resources: { mats, texs } };
+  return {
+    root,
+    rings,
+    _resources: { mats, texs },
+    _reveal: {
+      active: false,
+      startedAt: 0,
+      lastElapsed: null,
+      visibility: GRAVITY_RING_REVEAL_REQUIRE_CONFIRMED ? 0 : 1,
+    },
+  };
 }
 
 export function updateGravityPulseRings(
@@ -113,24 +195,64 @@ export function updateGravityPulseRings(
 ): void {
   const t = elapsedSeconds;
   const mode = options.hudMode === 'IR' ? 'IR' : 'COLOR';
+  const shouldReveal = isGravityRingsRevealActive(options.resonanceState);
+
+  const previousElapsed = handle._reveal.lastElapsed;
+  const dt = previousElapsed === null ? 1 / 60 : Math.min(0.1, Math.max(0, t - previousElapsed));
+  handle._reveal.lastElapsed = t;
+
+  // Restart the outward pulse cycle exactly when resonance becomes confirmed.
+  if (shouldReveal && !handle._reveal.active) {
+    handle._reveal.startedAt = t;
+  }
+
+  handle._reveal.active = shouldReveal;
+
+  if (shouldReveal) {
+    handle._reveal.visibility = clamp01(
+      handle._reveal.visibility + dt / Math.max(0.001, GRAVITY_RING_REVEAL_FADE_IN_SECONDS),
+    );
+  } else {
+    handle._reveal.visibility = clamp01(
+      handle._reveal.visibility - dt / Math.max(0.001, GRAVITY_RING_REVEAL_FADE_OUT_SECONDS),
+    );
+  }
+
+  const revealVisibility = smoothstep(0, 1, handle._reveal.visibility);
+  const pulseClock = Math.max(0, t - handle._reveal.startedAt);
 
   const palette =
     mode === 'COLOR'
       ? [new THREE.Color(0x0891b2), new THREE.Color(0x06b6d4), new THREE.Color(0x14b8a6)]
       : [new THREE.Color(0xdc2626), new THREE.Color(0xfb923c), new THREE.Color(0xf97316)];
 
-  // Gentle slow expansion per ring with phase offset.
   for (let i = 0; i < handle.rings.length; i++) {
     const ring = handle.rings[i];
     const mat = handle._resources.mats[i];
 
     if (!mat) continue;
 
-    const phase = t * 0.65 + i * 0.9;
-    const expand = 1.0 + 0.45 * Math.sin(phase) + i * 0.6;
-    const opacity = 0.08 + 0.08 * (0.6 + 0.6 * Math.cos(phase + i));
+    const pulseTime = (pulseClock + i * GRAVITY_RING_STAGGER_SECONDS) / GRAVITY_RING_PULSE_DURATION_SECONDS;
+    const progress = pulseTime - Math.floor(pulseTime);
+    const expansion = easeOutCubic(progress);
+    const scale = THREE.MathUtils.lerp(GRAVITY_RING_MIN_SCALE, GRAVITY_RING_MAX_SCALE, expansion);
 
-    ring.scale.setScalar(expand);
+    const fadeIn = smoothstep(0, GRAVITY_RING_FADE_IN_END, progress);
+    const fadeOut = 1 - smoothstep(GRAVITY_RING_FADE_OUT_START, 1, progress);
+    const ringOpacityMultiplier = 1 - i * GRAVITY_RING_OPACITY_FALLOFF_PER_RING;
+    const opacity =
+      GRAVITY_RING_MAX_OPACITY *
+      fadeIn *
+      fadeOut *
+      Math.max(0.35, ringOpacityMultiplier) *
+      revealVisibility;
+
+    ring.scale.set(
+      scale * GRAVITY_RING_AXIS_SCALE_X,
+      scale * GRAVITY_RING_AXIS_SCALE_Y,
+      1,
+    );
+
     mat.opacity = opacity;
     mat.color.copy(palette[i % palette.length]);
   }

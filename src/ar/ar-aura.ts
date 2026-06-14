@@ -3,7 +3,7 @@ import * as THREE from "three";
 // R4 Aura tuning block -------------------------------------------------------
 // Root offset moves the whole aura field relative to artifact-field-root.
 const AURA_ROOT_OFFSET_X = 0.15;
-const AURA_ROOT_OFFSET_Y = 0.45;
+const AURA_ROOT_OFFSET_Y = 0.65;
 const AURA_ROOT_OFFSET_Z = -0.5; // Tohle může dělat lens-flare jak hovado. 
 // This Z offset is a hack to reduce occlusion by the artifact surface. The aura sprites are still rendered in front of the artifact, but this helps with depth sorting issues that can cause flickering when the sprites are exactly coplanar with the surface.
 // Z offset controls spatial parallax of the aura layer.
