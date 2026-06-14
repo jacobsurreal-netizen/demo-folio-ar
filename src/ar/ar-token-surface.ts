@@ -56,7 +56,7 @@ const MYCELIUM_EDGE_FADE_STRENGTH = 1.0;
 const MYCELIUM_EDGE_FADE_CENTER_X = 0.5;
 const MYCELIUM_EDGE_FADE_CENTER_Y = 0.5;
 const MYCELIUM_EDGE_FADE_SHAPE_X = 1.30;
-const MYCELIUM_EDGE_FADE_SHAPE_Y = 1.35;
+const MYCELIUM_EDGE_FADE_SHAPE_Y = 1.28;
 
 // Pattern reveal dramaturgy.
 // The mycelium pulse stays hidden while the marker is unstable, then fades in after resonance confirmation.

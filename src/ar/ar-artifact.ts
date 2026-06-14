@@ -28,7 +28,7 @@ const ORB_BASE_COLOR = 0x3dd9c8;
 const ORB_EMISSIVE_COLOR = 0x00e8d4;
 const ORB_EMISSIVE_INTENSITY = 0.78; // Bright, glowing anomaly core
 const ORB_METALNESS = 0.12; // Slightly more reflective for energetic feel
-const ORB_ROUGHNESS = 0.28; // Glassier, less matte plastic-y
+const ORB_ROUGHNESS = 0.48; // Glassier, less matte plastic-y
 const ORB_PULSE_SPEED = 1.3; // Slower breathing: ~1.3 cycles/sec
 const ORB_PULSE_AMOUNT = 0.38; // Aggressive pulse: 38% amplitude for more visible anomaly energy
 const ORB_SCALE_PULSE_AMOUNT = 0.038; // More visible breathing: ±3.8% scale modulation
@@ -55,7 +55,8 @@ const IR_PEAK = new THREE.Color(0xffd66b);
 // Artifact hover staging.
 // Token surface response stays marker-bound under smoothingRoot,
 // while the visible artifact field is lifted into its own local hover root.
-const ARTIFACT_FIELD_Z_OFFSET = 0.35;
+const ARTIFACT_FIELD_X_OFFSET = -0.08;
+const ARTIFACT_FIELD_Z_OFFSET = 0.65;
 const ARTIFACT_FIELD_SCALE = 0.75;
 
 /** Handle returned by loadArtifact for per-frame updates */
@@ -332,6 +333,7 @@ export async function loadArtifact(parent: THREE.Group): Promise<ArtifactHandle>
         const artifactFieldRoot = new THREE.Group();
         artifactFieldRoot.name = 'artifact-field-root';
         artifactFieldRoot.position.z = ARTIFACT_FIELD_Z_OFFSET;
+        artifactFieldRoot.position.x = ARTIFACT_FIELD_X_OFFSET;
         artifactFieldRoot.scale.setScalar(ARTIFACT_FIELD_SCALE);
         smoothingRoot.add(artifactFieldRoot);
         artifactFieldRoot.add(model);
