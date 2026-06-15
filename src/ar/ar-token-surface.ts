@@ -22,9 +22,9 @@ const TOKEN_BIOPATTERN_MASK_URL = '/ar/token-biopattern-mask.png';
 
 // Current tuned placement for the token surface response.
 // Keep this attached to smoothingRoot; these offsets only move the marker/card surface layer.
-const SURFACE_X_OFFSET = -1.86;
-const SURFACE_Y_OFFSET = 0;
-const SURFACE_Z_OFFSET = 0;
+const SURFACE_X_OFFSET = -1.849;
+const SURFACE_Y_OFFSET = 0.004;
+const SURFACE_Z_OFFSET = -0.07;
 
 const LIGHT_SPILL_SIZE = 1.8;
 const PATTERN_WIDTH = 1.8;
