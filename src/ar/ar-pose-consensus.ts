@@ -1,3 +1,12 @@
+/**
+ * Passive pose consensus diagnostics for MindAR anchor observations.
+ *
+ * Raw world-space position metrics (positionSpreadRaw, positionStability) are
+ * reference-only — MindAR world units are not calibrated for gating.
+ *
+ * Projected screen/depth/normal metrics and `fieldLockCandidate` are intended
+ * for future Phase 2 gate decisions. No AR behavior is gated here yet.
+ */
 import * as THREE from 'three';
 
 const LOG_INTERVAL_MS = 400;
@@ -25,9 +34,25 @@ export const DEPTH_SPREAD_BAD = 0.14;
 export const NORMAL_SPREAD_GOOD = 0.04;
 export const NORMAL_SPREAD_BAD = 0.28;
 
+/**
+ * Phase 2 gate candidate thresholds — projected metrics only.
+ * `fieldLockCandidate` is the intended future gate signal; not behavioral yet.
+ */
+export const FIELD_LOCK_MIN_OBSERVATION_MS = 1000;
+export const FIELD_LOCK_MIN_SAMPLES = 24;
+export const FIELD_LOCK_SCREEN_STABILITY_MIN = 0.7;
+export const FIELD_LOCK_NORMAL_STABILITY_MIN = 0.85;
+export const FIELD_LOCK_DEPTH_STABILITY_MIN = 0.75;
+export const FIELD_LOCK_VIEWPOINT_AVG_MIN = 0.75;
+export const FIELD_LOCK_VIEWPOINT_MIN_MIN = 0.65;
+export const FIELD_LOCK_CONSENSUS_PROGRESS_MIN = 0.8;
+
 /** Per-frame stability thresholds for consecutive stable-frame counting. */
 const FRAME_STABLE_SCREEN_DELTA = 0.018;
 const FRAME_STABLE_ROT_DELTA = 0.12;
+const PROJECTED_FRAME_STABLE_SCREEN_DELTA = 0.022;
+const PROJECTED_FRAME_STABLE_ROT_DELTA = 0.14;
+const PROJECTED_FRAME_STABLE_NORMAL_DELTA = 0.1;
 
 interface WindowSampleSlot {
   timestamp: number;
@@ -55,6 +80,7 @@ export interface PoseConsensusDiagnostics {
   viewpointQualityAvg: number;
   viewpointQualityMin: number;
   stableFrameCount: number;
+  projectedStableFrameCount: number;
   screenCenterDelta: number;
   screenCenterSpread: number;
   screenCenterSpreadMax: number;
@@ -69,7 +95,11 @@ export interface PoseConsensusDiagnostics {
   normalStability: number;
   consensusProgress: number;
   stableEnough: boolean;
+  /** Legacy diagnostic — still uses consecutive frame gate; not Phase 2 candidate. */
   windowStableEnough: boolean;
+  /** Phase 2 gate candidate signal (diagnostic only until Phase 2). */
+  fieldLockCandidate: boolean;
+  fieldLockRejectReasons: string[];
 }
 
 export interface PoseConsensusSnapshot {
@@ -86,6 +116,7 @@ let sampleCount = 0;
 let lastLogMs = 0;
 let hasPreviousSample = false;
 let consecutiveStableFrames = 0;
+let consecutiveProjectedStableFrames = 0;
 
 let windowWriteIndex = 0;
 let windowFilled = 0;
@@ -105,6 +136,7 @@ const repNormal = new THREE.Vector3();
 let lastScreenX = 0;
 let lastScreenY = 0;
 let lastCameraDistance = 0;
+const lastMarkerNormal = new THREE.Vector3();
 
 function ensureWindowBuffer(): void {
   while (windowBuffer.length < WINDOW_SIZE) {
@@ -126,9 +158,11 @@ function resetWindow(): void {
   windowWriteIndex = 0;
   windowFilled = 0;
   consecutiveStableFrames = 0;
+  consecutiveProjectedStableFrames = 0;
   lastScreenX = 0;
   lastScreenY = 0;
   lastCameraDistance = 0;
+  lastMarkerNormal.set(0, 0, -1);
 }
 
 function smoothstep01(t: number): number {
@@ -343,6 +377,84 @@ function updateStableFrameCount(
   return consecutiveStableFrames;
 }
 
+function updateProjectedStableFrameCount(
+  screenCenterDelta: number,
+  frameAngularDeltaRad: number,
+  frameNormalDeltaRad: number,
+  viewpointQuality: number,
+): number {
+  const projectedFrameStable =
+    screenCenterDelta <= PROJECTED_FRAME_STABLE_SCREEN_DELTA &&
+    (frameAngularDeltaRad <= PROJECTED_FRAME_STABLE_ROT_DELTA ||
+      frameNormalDeltaRad <= PROJECTED_FRAME_STABLE_NORMAL_DELTA) &&
+    viewpointQuality >= VIEWPOINT_MIN_GOOD;
+
+  if (projectedFrameStable) {
+    consecutiveProjectedStableFrames += 1;
+  } else {
+    consecutiveProjectedStableFrames = 0;
+  }
+
+  return consecutiveProjectedStableFrames;
+}
+
+function evaluateFieldLockCandidate(input: {
+  observationAgeMs: number;
+  windowSampleCount: number;
+  screenStability: number;
+  normalStability: number;
+  depthStability: number;
+  viewpointQualityAvg: number;
+  viewpointQualityMin: number;
+  consensusProgress: number;
+}): { fieldLockCandidate: boolean; fieldLockRejectReasons: string[] } {
+  const reasons: string[] = [];
+
+  if (input.observationAgeMs < FIELD_LOCK_MIN_OBSERVATION_MS) {
+    reasons.push(
+      `observationAgeMs ${Math.round(input.observationAgeMs)} < ${FIELD_LOCK_MIN_OBSERVATION_MS}`,
+    );
+  }
+  if (input.windowSampleCount < FIELD_LOCK_MIN_SAMPLES) {
+    reasons.push(`windowSampleCount ${input.windowSampleCount} < ${FIELD_LOCK_MIN_SAMPLES}`);
+  }
+  if (input.screenStability < FIELD_LOCK_SCREEN_STABILITY_MIN) {
+    reasons.push(
+      `screenStability ${input.screenStability.toFixed(3)} < ${FIELD_LOCK_SCREEN_STABILITY_MIN}`,
+    );
+  }
+  if (input.normalStability < FIELD_LOCK_NORMAL_STABILITY_MIN) {
+    reasons.push(
+      `normalStability ${input.normalStability.toFixed(3)} < ${FIELD_LOCK_NORMAL_STABILITY_MIN}`,
+    );
+  }
+  if (input.depthStability < FIELD_LOCK_DEPTH_STABILITY_MIN) {
+    reasons.push(
+      `depthStability ${input.depthStability.toFixed(3)} < ${FIELD_LOCK_DEPTH_STABILITY_MIN}`,
+    );
+  }
+  if (input.viewpointQualityAvg < FIELD_LOCK_VIEWPOINT_AVG_MIN) {
+    reasons.push(
+      `viewpointQualityAvg ${input.viewpointQualityAvg.toFixed(3)} < ${FIELD_LOCK_VIEWPOINT_AVG_MIN}`,
+    );
+  }
+  if (input.viewpointQualityMin < FIELD_LOCK_VIEWPOINT_MIN_MIN) {
+    reasons.push(
+      `viewpointQualityMin ${input.viewpointQualityMin.toFixed(3)} < ${FIELD_LOCK_VIEWPOINT_MIN_MIN}`,
+    );
+  }
+  if (input.consensusProgress < FIELD_LOCK_CONSENSUS_PROGRESS_MIN) {
+    reasons.push(
+      `consensusProgress ${input.consensusProgress.toFixed(3)} < ${FIELD_LOCK_CONSENSUS_PROGRESS_MIN}`,
+    );
+  }
+
+  return {
+    fieldLockCandidate: reasons.length === 0,
+    fieldLockRejectReasons: reasons,
+  };
+}
+
 export function setPoseConsensusCamera(camera: THREE.Camera | null): void {
   consensusCamera = camera;
 }
@@ -386,12 +498,14 @@ export function samplePoseConsensus(anchor: THREE.Object3D): PoseConsensusDiagno
 
   let framePositionDelta = 0;
   let frameAngularDeltaRad = 0;
+  let frameNormalDeltaRad = 0;
   let screenCenterDelta = 0;
   let cameraDistanceDelta = 0;
 
   if (hasPreviousSample) {
     framePositionDelta = tmpPos.distanceTo(lastPos);
     frameAngularDeltaRad = lastQuat.angleTo(tmpQuat);
+    frameNormalDeltaRad = lastMarkerNormal.angleTo(markerNormal);
     screenCenterDelta = Math.hypot(
       projection.screenX - lastScreenX,
       projection.screenY - lastScreenY,
@@ -403,6 +517,7 @@ export function samplePoseConsensus(anchor: THREE.Object3D): PoseConsensusDiagno
 
   lastPos.copy(tmpPos);
   lastQuat.copy(tmpQuat);
+  lastMarkerNormal.copy(markerNormal);
   lastScreenX = projection.screenX;
   lastScreenY = projection.screenY;
   lastCameraDistance = projection.cameraDistance;
@@ -425,6 +540,12 @@ export function samplePoseConsensus(anchor: THREE.Object3D): PoseConsensusDiagno
   const stableFrameCount = updateStableFrameCount(
     screenCenterDelta,
     frameAngularDeltaRad,
+    viewpointQuality,
+  );
+  const projectedStableFrameCount = updateProjectedStableFrameCount(
+    screenCenterDelta,
+    frameAngularDeltaRad,
+    frameNormalDeltaRad,
     viewpointQuality,
   );
 
@@ -477,6 +598,7 @@ export function samplePoseConsensus(anchor: THREE.Object3D): PoseConsensusDiagno
     ),
   );
 
+  // Legacy windowStableEnough — retains stableFrameCount gate for comparison only.
   const windowStableEnough =
     observationAgeMs >= MIN_OBSERVATION_MS &&
     windowSampleCount >= MIN_SAMPLES &&
@@ -490,6 +612,17 @@ export function samplePoseConsensus(anchor: THREE.Object3D): PoseConsensusDiagno
     screenStability >= 0.65 &&
     normalStability >= 0.65 &&
     consensusProgress >= 0.7;
+
+  const { fieldLockCandidate, fieldLockRejectReasons } = evaluateFieldLockCandidate({
+    observationAgeMs,
+    windowSampleCount,
+    screenStability,
+    normalStability,
+    depthStability,
+    viewpointQualityAvg: windowMetrics.viewpointQualityAvg,
+    viewpointQualityMin: windowMetrics.viewpointQualityMin,
+    consensusProgress,
+  });
 
   const diagnostics: PoseConsensusDiagnostics = {
     observationAgeMs,
@@ -505,6 +638,7 @@ export function samplePoseConsensus(anchor: THREE.Object3D): PoseConsensusDiagno
     viewpointQualityAvg: windowMetrics.viewpointQualityAvg,
     viewpointQualityMin: windowMetrics.viewpointQualityMin,
     stableFrameCount,
+    projectedStableFrameCount,
     screenCenterDelta,
     screenCenterSpread: windowMetrics.screenCenterSpread,
     screenCenterSpreadMax: windowMetrics.screenCenterSpreadMax,
@@ -520,6 +654,8 @@ export function samplePoseConsensus(anchor: THREE.Object3D): PoseConsensusDiagno
     consensusProgress,
     stableEnough,
     windowStableEnough,
+    fieldLockCandidate,
+    fieldLockRejectReasons,
   };
 
   latestDiagnostics = diagnostics;
@@ -539,6 +675,9 @@ export function samplePoseConsensus(anchor: THREE.Object3D): PoseConsensusDiagno
       positionSpreadRaw: Number(windowMetrics.positionSpreadRaw.toFixed(3)),
       positionStability: Number(positionStability.toFixed(3)),
       consensusProgress: Number(consensusProgress.toFixed(3)),
+      projectedStableFrameCount,
+      fieldLockCandidate,
+      fieldLockRejectReasons,
       windowStableEnough,
       stableEnough,
     });

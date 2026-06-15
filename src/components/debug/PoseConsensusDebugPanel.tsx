@@ -89,12 +89,18 @@ function renderSnapshot(
     `depthStability: ${formatMetric(diagnostics.depthStability, 3)}`,
     `normalAngularSpreadRad: ${formatMetric(diagnostics.normalAngularSpreadRad, 4)}`,
     `normalStability: ${formatMetric(diagnostics.normalStability, 3)}`,
-    '— normalized —',
-    `positionStability(raw): ${formatMetric(diagnostics.positionStability, 3)}`,
-    `rotationStability: ${formatMetric(diagnostics.rotationStability, 3)}`,
+    '— gate candidate —',
     `consensusProgress: ${formatMetric(diagnostics.consensusProgress, 3)}`,
+    `fieldLockCandidate: ${diagnostics.fieldLockCandidate ? 'true' : 'false'}`,
+    `projectedStableFrameCount: ${diagnostics.projectedStableFrameCount}`,
+    ...(diagnostics.fieldLockRejectReasons.length > 0
+      ? diagnostics.fieldLockRejectReasons.map((reason) => `reject: ${reason}`)
+      : ['reject: none']),
+    '— legacy —',
     `windowStableEnough: ${diagnostics.windowStableEnough ? 'true' : 'false'}`,
     `stableEnough: ${diagnostics.stableEnough ? 'true' : 'false'}`,
+    `positionStability(raw): ${formatMetric(diagnostics.positionStability, 3)}`,
+    `rotationStability: ${formatMetric(diagnostics.rotationStability, 3)}`,
     `observationAgeMs: ${Math.round(diagnostics.observationAgeMs)}`,
     `sampleCount: ${diagnostics.sampleCount}`,
   );
