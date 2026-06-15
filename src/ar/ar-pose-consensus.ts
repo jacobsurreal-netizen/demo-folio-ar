@@ -5,7 +5,8 @@
  * reference-only — MindAR world units are not calibrated for gating.
  *
  * Projected screen/depth/normal metrics and `fieldLockCandidate` are intended
- * for future Phase 2 gate decisions. No AR behavior is gated here yet.
+ * for future Phase 2 gate decisions. The 32-sample window is for analysis;
+ * `fieldLockCandidate` uses the shorter recent gate window only.
  */
 import * as THREE from 'three';
 
@@ -13,6 +14,11 @@ const LOG_INTERVAL_MS = 400;
 
 /** Sliding window size for pose consensus calibration (diagnostic only). */
 export const WINDOW_SIZE = 32;
+
+/** Shorter recent window used for `fieldLockCandidate` evaluation. */
+export const GATE_WINDOW_SIZE = 14;
+export const GATE_MIN_SAMPLES = 10;
+export const GATE_MIN_OBSERVATION_MS = 900;
 
 /** Minimum observation window before windowStableEnough can be true (tune on device). */
 export const MIN_OBSERVATION_MS = 600;
@@ -35,17 +41,17 @@ export const NORMAL_SPREAD_GOOD = 0.04;
 export const NORMAL_SPREAD_BAD = 0.28;
 
 /**
- * Phase 2 gate candidate thresholds — projected metrics only.
+ * Phase 2 gate candidate thresholds — recent gate-window projected metrics only.
  * `fieldLockCandidate` is the intended future gate signal; not behavioral yet.
  */
-export const FIELD_LOCK_MIN_OBSERVATION_MS = 1000;
-export const FIELD_LOCK_MIN_SAMPLES = 24;
-export const FIELD_LOCK_SCREEN_STABILITY_MIN = 0.7;
-export const FIELD_LOCK_NORMAL_STABILITY_MIN = 0.85;
-export const FIELD_LOCK_DEPTH_STABILITY_MIN = 0.75;
-export const FIELD_LOCK_VIEWPOINT_AVG_MIN = 0.75;
-export const FIELD_LOCK_VIEWPOINT_MIN_MIN = 0.65;
-export const FIELD_LOCK_CONSENSUS_PROGRESS_MIN = 0.8;
+export const FIELD_LOCK_MIN_AGE_MS = 900;
+export const FIELD_LOCK_MIN_SAMPLES = 10;
+export const FIELD_LOCK_SCREEN_STABILITY_MIN = 0.65;
+export const FIELD_LOCK_NORMAL_STABILITY_MIN = 0.8;
+export const FIELD_LOCK_DEPTH_STABILITY_MIN = 0.7;
+export const FIELD_LOCK_VIEWPOINT_AVG_MIN = 0.65;
+export const FIELD_LOCK_VIEWPOINT_MIN = 0.55;
+export const FIELD_LOCK_CONSENSUS_MIN = 0.75;
 
 /** Per-frame stability thresholds for consecutive stable-frame counting. */
 const FRAME_STABLE_SCREEN_DELTA = 0.018;
@@ -94,6 +100,18 @@ export interface PoseConsensusDiagnostics {
   depthStability: number;
   normalStability: number;
   consensusProgress: number;
+  gateWindowSampleCount: number;
+  gateWindowAgeMs: number;
+  gateScreenCenterSpread: number;
+  gateScreenCenterSpreadMax: number;
+  gateScreenStability: number;
+  gateCameraDistanceSpread: number;
+  gateDepthStability: number;
+  gateNormalAngularSpreadRad: number;
+  gateNormalStability: number;
+  gateViewpointQualityAvg: number;
+  gateViewpointQualityMin: number;
+  gateConsensusProgress: number;
   stableEnough: boolean;
   /** Legacy diagnostic — still uses consecutive frame gate; not Phase 2 candidate. */
   windowStableEnough: boolean;
@@ -264,6 +282,13 @@ function getOrderedWindowSamples(): WindowSampleSlot[] {
   return ordered;
 }
 
+/** Latest N samples from the diagnostic window — used for gate candidate only. */
+function getGateWindowSamples(orderedSamples: WindowSampleSlot[]): WindowSampleSlot[] {
+  const count = Math.min(GATE_WINDOW_SIZE, orderedSamples.length);
+  if (count === 0) return [];
+  return orderedSamples.slice(orderedSamples.length - count);
+}
+
 function computeWindowMetrics(samples: WindowSampleSlot[]): {
   windowAgeMs: number;
   positionSpreadRaw: number;
@@ -400,52 +425,52 @@ function updateProjectedStableFrameCount(
 
 function evaluateFieldLockCandidate(input: {
   observationAgeMs: number;
-  windowSampleCount: number;
-  screenStability: number;
-  normalStability: number;
-  depthStability: number;
-  viewpointQualityAvg: number;
-  viewpointQualityMin: number;
-  consensusProgress: number;
+  gateWindowSampleCount: number;
+  gateScreenStability: number;
+  gateNormalStability: number;
+  gateDepthStability: number;
+  gateViewpointQualityAvg: number;
+  gateViewpointQualityMin: number;
+  gateConsensusProgress: number;
 }): { fieldLockCandidate: boolean; fieldLockRejectReasons: string[] } {
   const reasons: string[] = [];
 
-  if (input.observationAgeMs < FIELD_LOCK_MIN_OBSERVATION_MS) {
+  if (input.observationAgeMs < FIELD_LOCK_MIN_AGE_MS) {
     reasons.push(
-      `observationAgeMs ${Math.round(input.observationAgeMs)} < ${FIELD_LOCK_MIN_OBSERVATION_MS}`,
+      `observationAgeMs ${Math.round(input.observationAgeMs)} < ${FIELD_LOCK_MIN_AGE_MS}`,
     );
   }
-  if (input.windowSampleCount < FIELD_LOCK_MIN_SAMPLES) {
-    reasons.push(`windowSampleCount ${input.windowSampleCount} < ${FIELD_LOCK_MIN_SAMPLES}`);
+  if (input.gateWindowSampleCount < FIELD_LOCK_MIN_SAMPLES) {
+    reasons.push(`gateWindowSampleCount ${input.gateWindowSampleCount} < ${FIELD_LOCK_MIN_SAMPLES}`);
   }
-  if (input.screenStability < FIELD_LOCK_SCREEN_STABILITY_MIN) {
+  if (input.gateScreenStability < FIELD_LOCK_SCREEN_STABILITY_MIN) {
     reasons.push(
-      `screenStability ${input.screenStability.toFixed(3)} < ${FIELD_LOCK_SCREEN_STABILITY_MIN}`,
+      `gateScreenStability ${input.gateScreenStability.toFixed(3)} < ${FIELD_LOCK_SCREEN_STABILITY_MIN}`,
     );
   }
-  if (input.normalStability < FIELD_LOCK_NORMAL_STABILITY_MIN) {
+  if (input.gateNormalStability < FIELD_LOCK_NORMAL_STABILITY_MIN) {
     reasons.push(
-      `normalStability ${input.normalStability.toFixed(3)} < ${FIELD_LOCK_NORMAL_STABILITY_MIN}`,
+      `gateNormalStability ${input.gateNormalStability.toFixed(3)} < ${FIELD_LOCK_NORMAL_STABILITY_MIN}`,
     );
   }
-  if (input.depthStability < FIELD_LOCK_DEPTH_STABILITY_MIN) {
+  if (input.gateDepthStability < FIELD_LOCK_DEPTH_STABILITY_MIN) {
     reasons.push(
-      `depthStability ${input.depthStability.toFixed(3)} < ${FIELD_LOCK_DEPTH_STABILITY_MIN}`,
+      `gateDepthStability ${input.gateDepthStability.toFixed(3)} < ${FIELD_LOCK_DEPTH_STABILITY_MIN}`,
     );
   }
-  if (input.viewpointQualityAvg < FIELD_LOCK_VIEWPOINT_AVG_MIN) {
+  if (input.gateViewpointQualityAvg < FIELD_LOCK_VIEWPOINT_AVG_MIN) {
     reasons.push(
-      `viewpointQualityAvg ${input.viewpointQualityAvg.toFixed(3)} < ${FIELD_LOCK_VIEWPOINT_AVG_MIN}`,
+      `gateViewpointQualityAvg ${input.gateViewpointQualityAvg.toFixed(3)} < ${FIELD_LOCK_VIEWPOINT_AVG_MIN}`,
     );
   }
-  if (input.viewpointQualityMin < FIELD_LOCK_VIEWPOINT_MIN_MIN) {
+  if (input.gateViewpointQualityMin < FIELD_LOCK_VIEWPOINT_MIN) {
     reasons.push(
-      `viewpointQualityMin ${input.viewpointQualityMin.toFixed(3)} < ${FIELD_LOCK_VIEWPOINT_MIN_MIN}`,
+      `gateViewpointQualityMin ${input.gateViewpointQualityMin.toFixed(3)} < ${FIELD_LOCK_VIEWPOINT_MIN}`,
     );
   }
-  if (input.consensusProgress < FIELD_LOCK_CONSENSUS_PROGRESS_MIN) {
+  if (input.gateConsensusProgress < FIELD_LOCK_CONSENSUS_MIN) {
     reasons.push(
-      `consensusProgress ${input.consensusProgress.toFixed(3)} < ${FIELD_LOCK_CONSENSUS_PROGRESS_MIN}`,
+      `gateConsensusProgress ${input.gateConsensusProgress.toFixed(3)} < ${FIELD_LOCK_CONSENSUS_MIN}`,
     );
   }
 
@@ -453,6 +478,35 @@ function evaluateFieldLockCandidate(input: {
     fieldLockCandidate: reasons.length === 0,
     fieldLockRejectReasons: reasons,
   };
+}
+
+function computeGateConsensusProgress(input: {
+  observationAgeMs: number;
+  gateWindowSampleCount: number;
+  gateScreenStability: number;
+  gateNormalStability: number;
+  gateDepthStability: number;
+  gateViewpointQualityAvg: number;
+  projectedStableFrameCount: number;
+}): number {
+  const ageProgress = Math.min(1, input.observationAgeMs / GATE_MIN_OBSERVATION_MS);
+  const sampleProgress = Math.min(1, input.gateWindowSampleCount / GATE_MIN_SAMPLES);
+  const stableFrameProgress = Math.min(1, input.projectedStableFrameCount / STABLE_FRAMES_REQUIRED);
+  const viewpointProgress = Math.min(1, input.gateViewpointQualityAvg / FIELD_LOCK_VIEWPOINT_AVG_MIN);
+
+  return Math.max(
+    0,
+    Math.min(
+      1,
+      ageProgress * 0.1 +
+        sampleProgress * 0.1 +
+        input.gateScreenStability * 0.25 +
+        input.gateNormalStability * 0.2 +
+        viewpointProgress * 0.15 +
+        input.gateDepthStability * 0.05 +
+        stableFrameProgress * 0.15,
+    ),
+  );
 }
 
 export function setPoseConsensusCamera(camera: THREE.Camera | null): void {
@@ -537,6 +591,8 @@ export function samplePoseConsensus(anchor: THREE.Object3D): PoseConsensusDiagno
 
   const orderedSamples = getOrderedWindowSamples();
   const windowMetrics = computeWindowMetrics(orderedSamples);
+  const gateSamples = getGateWindowSamples(orderedSamples);
+  const gateMetrics = computeWindowMetrics(gateSamples);
   const stableFrameCount = updateStableFrameCount(
     screenCenterDelta,
     frameAngularDeltaRad,
@@ -578,6 +634,24 @@ export function samplePoseConsensus(anchor: THREE.Object3D): PoseConsensusDiagno
     NORMAL_SPREAD_BAD,
   );
 
+  const gateScreenStability = stabilityFromRange(
+    gateMetrics.screenCenterSpread,
+    SCREEN_SPREAD_GOOD,
+    SCREEN_SPREAD_BAD,
+  );
+  const gateDepthStability = stabilityFromRange(
+    gateMetrics.cameraDistanceSpread,
+    DEPTH_SPREAD_GOOD,
+    DEPTH_SPREAD_BAD,
+  );
+  const gateNormalStability = stabilityFromRange(
+    gateMetrics.normalAngularSpreadRad,
+    NORMAL_SPREAD_GOOD,
+    NORMAL_SPREAD_BAD,
+  );
+
+  const gateWindowSampleCount = gateSamples.length;
+
   const ageProgress = Math.min(1, observationAgeMs / MIN_OBSERVATION_MS);
   const sampleProgress = Math.min(1, windowSampleCount / MIN_SAMPLES);
   const stableFrameProgress = Math.min(1, stableFrameCount / STABLE_FRAMES_REQUIRED);
@@ -613,15 +687,25 @@ export function samplePoseConsensus(anchor: THREE.Object3D): PoseConsensusDiagno
     normalStability >= 0.65 &&
     consensusProgress >= 0.7;
 
+  const gateConsensusProgress = computeGateConsensusProgress({
+    observationAgeMs,
+    gateWindowSampleCount,
+    gateScreenStability,
+    gateNormalStability,
+    gateDepthStability,
+    gateViewpointQualityAvg: gateMetrics.viewpointQualityAvg,
+    projectedStableFrameCount,
+  });
+
   const { fieldLockCandidate, fieldLockRejectReasons } = evaluateFieldLockCandidate({
     observationAgeMs,
-    windowSampleCount,
-    screenStability,
-    normalStability,
-    depthStability,
-    viewpointQualityAvg: windowMetrics.viewpointQualityAvg,
-    viewpointQualityMin: windowMetrics.viewpointQualityMin,
-    consensusProgress,
+    gateWindowSampleCount,
+    gateScreenStability,
+    gateNormalStability,
+    gateDepthStability,
+    gateViewpointQualityAvg: gateMetrics.viewpointQualityAvg,
+    gateViewpointQualityMin: gateMetrics.viewpointQualityMin,
+    gateConsensusProgress,
   });
 
   const diagnostics: PoseConsensusDiagnostics = {
@@ -652,6 +736,18 @@ export function samplePoseConsensus(anchor: THREE.Object3D): PoseConsensusDiagno
     depthStability,
     normalStability,
     consensusProgress,
+    gateWindowSampleCount,
+    gateWindowAgeMs: gateMetrics.windowAgeMs,
+    gateScreenCenterSpread: gateMetrics.screenCenterSpread,
+    gateScreenCenterSpreadMax: gateMetrics.screenCenterSpreadMax,
+    gateScreenStability,
+    gateCameraDistanceSpread: gateMetrics.cameraDistanceSpread,
+    gateDepthStability,
+    gateNormalAngularSpreadRad: gateMetrics.normalAngularSpreadRad,
+    gateNormalStability,
+    gateViewpointQualityAvg: gateMetrics.viewpointQualityAvg,
+    gateViewpointQualityMin: gateMetrics.viewpointQualityMin,
+    gateConsensusProgress,
     stableEnough,
     windowStableEnough,
     fieldLockCandidate,
@@ -675,6 +771,10 @@ export function samplePoseConsensus(anchor: THREE.Object3D): PoseConsensusDiagno
       positionSpreadRaw: Number(windowMetrics.positionSpreadRaw.toFixed(3)),
       positionStability: Number(positionStability.toFixed(3)),
       consensusProgress: Number(consensusProgress.toFixed(3)),
+      gateWindowSampleCount,
+      gateScreenStability: Number(gateScreenStability.toFixed(3)),
+      gateViewpointQualityAvg: Number(gateMetrics.viewpointQualityAvg.toFixed(3)),
+      gateConsensusProgress: Number(gateConsensusProgress.toFixed(3)),
       projectedStableFrameCount,
       fieldLockCandidate,
       fieldLockRejectReasons,
