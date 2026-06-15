@@ -19,6 +19,7 @@ import type { ResonanceAuraHandle } from './ar-aura';
 import { createGravityPulseRings, updateGravityPulseRings, disposeGravityPulseRings } from './ar-pulse-rings';
 import { createTokenSurfaceResponse, updateTokenSurfaceResponse, disposeTokenSurfaceResponse } from './ar-token-surface';
 import type { TokenSurfaceHandle } from './ar-token-surface';
+import { samplePoseConsensus } from './ar-pose-consensus';
 
 /** Confirmed GLB mesh names — do not apply orb pass to other meshes. */
 export const ARTIFACT_MESH_TURQUOISE_ORB = 'TurquoiseOrb';
@@ -55,9 +56,10 @@ const IR_PEAK = new THREE.Color(0xffd66b);
 // Artifact hover staging.
 // Token surface response stays marker-bound under smoothingRoot,
 // while the visible artifact field is lifted into its own local hover root.
-const ARTIFACT_FIELD_X_OFFSET = -0.08;
-const ARTIFACT_FIELD_Z_OFFSET = 0.65;
-const ARTIFACT_FIELD_SCALE = 0.75;
+const ARTIFACT_FIELD_X_OFFSET = -0.11;
+const ARTIFACT_FIELD_Y_OFFSET = -0.17;
+const ARTIFACT_FIELD_Z_OFFSET = 0.7;
+const ARTIFACT_FIELD_SCALE = 0.57;
 
 /** Handle returned by loadArtifact for per-frame updates */
 export interface ArtifactHandle {
@@ -334,6 +336,7 @@ export async function loadArtifact(parent: THREE.Group): Promise<ArtifactHandle>
         artifactFieldRoot.name = 'artifact-field-root';
         artifactFieldRoot.position.z = ARTIFACT_FIELD_Z_OFFSET;
         artifactFieldRoot.position.x = ARTIFACT_FIELD_X_OFFSET;
+        artifactFieldRoot.position.y = ARTIFACT_FIELD_Y_OFFSET;
         artifactFieldRoot.scale.setScalar(ARTIFACT_FIELD_SCALE);
         smoothingRoot.add(artifactFieldRoot);
         artifactFieldRoot.add(model);
@@ -383,6 +386,8 @@ export async function loadArtifact(parent: THREE.Group): Promise<ArtifactHandle>
 
         resolve({
           update() {
+            samplePoseConsensus(parent);
+
             // Read current app state each frame (read-only)
             const state = arStore.getState();
             const resonance = state.resonanceState;

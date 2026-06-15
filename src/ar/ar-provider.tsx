@@ -23,6 +23,11 @@ import { setupScene } from './ar-scene';
 import { ARTIFACT_MESH_TURQUOISE_ORB, loadArtifact, type ArtifactHandle } from './ar-artifact';
 import { arStore } from '../state/store';
 import { useAppState } from '../hooks/use-app-state';
+import {
+  resetPoseConsensus,
+  setGlyphDetected,
+  setPoseConsensusCamera,
+} from './ar-pose-consensus';
 
 const AR_SHUTDOWN_EVENT = 'surreal-ar-shutdown-request';
 
@@ -182,6 +187,9 @@ export function ARProvider() {
     containerRef.current?.replaceChildren();
     mindarRef.current = null;
     startInFlightRef.current = false;
+    setGlyphDetected(false);
+    resetPoseConsensus();
+    setPoseConsensusCamera(null);
     arStore.setState({ arReady: false, tracking: 'awaiting', signalStrength: 0, modelLoaded: false });
   }, [stopAllVideoTracks, stopMindARMedia]);
 
@@ -212,6 +220,7 @@ export function ARProvider() {
 
       const { renderer, scene, camera } = mindarThree;
       mindarRef.current = mindarThree;
+      setPoseConsensusCamera(camera);
 
       // Setup lighting and environment
       setupScene(scene);
@@ -225,11 +234,14 @@ export function ARProvider() {
           clearTimeout(lostTimeoutRef.current);
           lostTimeoutRef.current = null;
         }
+        setGlyphDetected(true);
         arStore.setState({ tracking: 'locked', signalStrength: 1 });
       };
 
       anchor.onTargetLost = () => {
         console.log('[AR] Target Lost');
+        setGlyphDetected(false);
+        resetPoseConsensus();
         arStore.setState({ tracking: 'lost', signalStrength: 0 });
 
         // Set timeout to revert to awaiting
