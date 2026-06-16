@@ -328,6 +328,8 @@ export async function loadArtifact(parent: THREE.Group): Promise<ArtifactHandle>
         // but we can apply a local counter-transform to reduce visible jitter after CONFIRMED.
         const smoothingRoot = new THREE.Group();
         smoothingRoot.name = 'artifact-smoothing-root';
+        smoothingRoot.visible = false;
+        let fieldManifested = false;
         parent.add(smoothingRoot);
 
         // Separate marker/card response from the floating artifact field.
@@ -386,10 +388,25 @@ export async function loadArtifact(parent: THREE.Group): Promise<ArtifactHandle>
 
         resolve({
           update() {
-            samplePoseConsensus(parent);
-
-            // Read current app state each frame (read-only)
+            const diagnostics = samplePoseConsensus(parent);
             const state = arStore.getState();
+
+            if (state.tracking !== 'locked') {
+              fieldManifested = false;
+              smoothingRoot.visible = false;
+              return;
+            }
+
+            if (!fieldManifested) {
+              if (diagnostics?.fieldLockCandidate !== true) {
+                smoothingRoot.visible = false;
+                return;
+              }
+              fieldManifested = true;
+              smoothingRoot.visible = true;
+              console.log('[AR PoseConsensus] FIELD_MANIFESTED');
+            }
+
             const resonance = state.resonanceState;
             const progress = Math.max(0, Math.min(1, state.stabilizationProgress ?? 0));
 
