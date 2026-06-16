@@ -10,6 +10,7 @@
 import { useAppState } from './hooks/use-app-state';
 import { ARProvider } from './ar/ar-provider';
 import { Hud } from './hud/Hud';
+import { PoseConsensusDebugPanel } from './components/debug/PoseConsensusDebugPanel';
 
 export function App() {
   const { hudMode, arReady } = useAppState();
@@ -28,6 +29,8 @@ export function App() {
       <div style={{ position: 'absolute', inset: 0, zIndex: 'var(--z-hud-interactive)', pointerEvents: 'none' }}>
         <Hud />
       </div>
+
+      <PoseConsensusDebugPanel />
     </div>
   );
 }
