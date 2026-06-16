@@ -3,6 +3,7 @@ import {
   getPoseConsensusSnapshot,
   type PoseConsensusSnapshot,
 } from '../../ar/ar-pose-consensus';
+import { getManifestPoseSnapshot } from '../../ar/ar-manifest-pose';
 import { useAppState } from '../../hooks/use-app-state';
 
 const UI_POLL_MS = 250;
@@ -104,6 +105,29 @@ function renderSnapshot(
     ...(diagnostics.fieldLockRejectReasons.length > 0
       ? diagnostics.fieldLockRejectReasons.map((reason) => `reject: ${reason}`)
       : ['reject: none']),
+  );
+
+  const manifestSnapshot = getManifestPoseSnapshot();
+  if (manifestSnapshot.manifestCaptured && manifestSnapshot.diagnostics) {
+    const manifest = manifestSnapshot.diagnostics;
+    lines.push(
+      '— manifest pose —',
+      `manifestCaptured: true`,
+      `manifestAgeMs: ${Math.round(manifest.manifestAgeMs)}`,
+      `manifestPositionDrift: ${formatMetric(manifest.manifestPositionDrift, 3)}`,
+      `manifestRotationDriftRad: ${formatMetric(manifest.manifestRotationDriftRad, 4)}`,
+      `manifestDriftStable: ${manifest.manifestDriftStable ? 'true' : 'false'}`,
+      `manifestHealth: ${manifest.manifestHealth}`,
+      `manifestUnhealthyAgeMs: ${Math.round(manifest.manifestUnhealthyAgeMs)}`,
+      ...(manifest.manifestHealthReasons.length > 0
+        ? manifest.manifestHealthReasons.map((reason) => `health: ${reason}`)
+        : ['health: none']),
+    );
+  } else {
+    lines.push('— manifest pose —', 'manifestCaptured: false');
+  }
+
+  lines.push(
     '— legacy —',
     `windowStableEnough: ${diagnostics.windowStableEnough ? 'true' : 'false'}`,
     `stableEnough: ${diagnostics.stableEnough ? 'true' : 'false'}`,

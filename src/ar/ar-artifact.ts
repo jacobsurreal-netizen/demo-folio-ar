@@ -20,6 +20,11 @@ import { createGravityPulseRings, updateGravityPulseRings, disposeGravityPulseRi
 import { createTokenSurfaceResponse, updateTokenSurfaceResponse, disposeTokenSurfaceResponse } from './ar-token-surface';
 import type { TokenSurfaceHandle } from './ar-token-surface';
 import { samplePoseConsensus } from './ar-pose-consensus';
+import {
+  captureManifestPose,
+  resetManifestPose,
+  sampleManifestPoseDrift,
+} from './ar-manifest-pose';
 
 /** Confirmed GLB mesh names — do not apply orb pass to other meshes. */
 export const ARTIFACT_MESH_TURQUOISE_ORB = 'TurquoiseOrb';
@@ -394,6 +399,7 @@ export async function loadArtifact(parent: THREE.Group): Promise<ArtifactHandle>
             if (state.tracking !== 'locked') {
               fieldManifested = false;
               smoothingRoot.visible = false;
+              resetManifestPose();
               return;
             }
 
@@ -404,7 +410,14 @@ export async function loadArtifact(parent: THREE.Group): Promise<ArtifactHandle>
               }
               fieldManifested = true;
               smoothingRoot.visible = true;
+              captureManifestPose(parent);
               console.log('[AR PoseConsensus] FIELD_MANIFESTED');
+            } else {
+              sampleManifestPoseDrift(parent, {
+                fieldLockCandidate: diagnostics?.fieldLockCandidate,
+                gateScreenStability: diagnostics?.gateScreenStability,
+                gateNormalStability: diagnostics?.gateNormalStability,
+              });
             }
 
             const resonance = state.resonanceState;
