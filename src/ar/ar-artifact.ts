@@ -66,6 +66,9 @@ const ARTIFACT_FIELD_Y_OFFSET = -0.17;
 const ARTIFACT_FIELD_Z_OFFSET = 0.7;
 const ARTIFACT_FIELD_SCALE = 0.57;
 
+/** Phase 2B.3/2B.4 auto-realign disabled — manifest health is diagnostic only. */
+const AUTO_REALIGN_ENABLED = false;
+
 /** Handle returned by loadArtifact for per-frame updates */
 export interface ArtifactHandle {
   /** Call every frame inside the render loop */
@@ -393,6 +396,8 @@ export async function loadArtifact(parent: THREE.Group): Promise<ArtifactHandle>
 
         resolve({
           update() {
+            void AUTO_REALIGN_ENABLED;
+
             const diagnostics = samplePoseConsensus(parent);
             const state = arStore.getState();
 
@@ -417,6 +422,7 @@ export async function loadArtifact(parent: THREE.Group): Promise<ArtifactHandle>
                 fieldLockCandidate: diagnostics?.fieldLockCandidate,
                 gateScreenStability: diagnostics?.gateScreenStability,
                 gateNormalStability: diagnostics?.gateNormalStability,
+                gateDepthStability: diagnostics?.gateDepthStability,
               });
             }
 

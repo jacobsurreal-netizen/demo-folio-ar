@@ -108,11 +108,14 @@ function renderSnapshot(
   );
 
   const manifestSnapshot = getManifestPoseSnapshot();
+  lines.push(
+    '— manifest pose (diagnostic only) —',
+    `manifestCaptured: ${manifestSnapshot.manifestCaptured ? 'true' : 'false'}`,
+  );
+
   if (manifestSnapshot.manifestCaptured && manifestSnapshot.diagnostics) {
     const manifest = manifestSnapshot.diagnostics;
     lines.push(
-      '— manifest pose —',
-      `manifestCaptured: true`,
       `manifestAgeMs: ${Math.round(manifest.manifestAgeMs)}`,
       `manifestPositionDrift: ${formatMetric(manifest.manifestPositionDrift, 3)}`,
       `manifestRotationDriftRad: ${formatMetric(manifest.manifestRotationDriftRad, 4)}`,
@@ -123,8 +126,6 @@ function renderSnapshot(
         ? manifest.manifestHealthReasons.map((reason) => `health: ${reason}`)
         : ['health: none']),
     );
-  } else {
-    lines.push('— manifest pose —', 'manifestCaptured: false');
   }
 
   lines.push(

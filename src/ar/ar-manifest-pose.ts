@@ -23,6 +23,7 @@ export interface ManifestHealthContext {
   fieldLockCandidate?: boolean;
   gateScreenStability?: number;
   gateNormalStability?: number;
+  gateDepthStability?: number;
 }
 
 export interface ManifestPoseDiagnostics {
@@ -78,16 +79,23 @@ function evaluateManifestHealth(
   const positionBad = manifestPositionDrift > MANIFEST_POSITION_DRIFT_BAD;
   const rotationWarn = manifestRotationDriftRad > MANIFEST_ROTATION_DRIFT_WARN_RAD;
   const rotationBad = manifestRotationDriftRad > MANIFEST_ROTATION_DRIFT_BAD_RAD;
-  const driftBad = positionBad || rotationBad;
-  const driftWarn = positionWarn || rotationWarn;
+
+  const gateScreenUnstable =
+    typeof context?.gateScreenStability === 'number' && context.gateScreenStability < 0.65;
+  const gateNormalUnstable =
+    typeof context?.gateNormalStability === 'number' && context.gateNormalStability < 0.8;
+  const gateDepthUnstable =
+    typeof context?.gateDepthStability === 'number' && context.gateDepthStability < 0.7;
+  const gateUnstable = gateScreenUnstable || gateNormalUnstable || gateDepthUnstable;
+  const candidateFalse = context?.fieldLockCandidate === false;
 
   if (positionBad) {
     reasons.push(
-      `positionDrift ${manifestPositionDrift.toFixed(1)} > BAD ${MANIFEST_POSITION_DRIFT_BAD}`,
+      `positionDrift ${manifestPositionDrift.toFixed(1)} > BAD ${MANIFEST_POSITION_DRIFT_BAD} (ref)`,
     );
   } else if (positionWarn) {
     reasons.push(
-      `positionDrift ${manifestPositionDrift.toFixed(1)} > WARN ${MANIFEST_POSITION_DRIFT_WARN}`,
+      `positionDrift ${manifestPositionDrift.toFixed(1)} > WARN ${MANIFEST_POSITION_DRIFT_WARN} (ref)`,
     );
   }
 
@@ -101,27 +109,31 @@ function evaluateManifestHealth(
     );
   }
 
-  if (context?.fieldLockCandidate === false) {
+  if (candidateFalse) {
     reasons.push('fieldLockCandidate false after manifestation');
   }
 
-  if (
-    typeof context?.gateScreenStability === 'number' &&
-    context.gateScreenStability < 0.65
-  ) {
-    reasons.push(`gateScreenStability ${context.gateScreenStability.toFixed(3)} < 0.65`);
+  if (gateScreenUnstable) {
+    reasons.push(`gateScreenStability ${context?.gateScreenStability?.toFixed(3)} < 0.65`);
   }
 
-  if (
-    typeof context?.gateNormalStability === 'number' &&
-    context.gateNormalStability < 0.8
-  ) {
-    reasons.push(`gateNormalStability ${context.gateNormalStability.toFixed(3)} < 0.80`);
+  if (gateNormalUnstable) {
+    reasons.push(`gateNormalStability ${context?.gateNormalStability?.toFixed(3)} < 0.80`);
   }
+
+  if (gateDepthUnstable) {
+    reasons.push(`gateDepthStability ${context?.gateDepthStability?.toFixed(3)} < 0.70`);
+  }
+
+  // Raw position drift alone is reference-only — never a hard realign trigger.
+  const realignTrigger =
+    rotationBad ||
+    (candidateFalse && gateUnstable) ||
+    (positionBad && (rotationBad || rotationWarn || gateUnstable || candidateFalse));
 
   let manifestUnhealthyAgeMs = 0;
 
-  if (driftBad) {
+  if (realignTrigger) {
     if (unhealthyStartedAtMs === null) {
       unhealthyStartedAtMs = now;
     }
@@ -132,12 +144,12 @@ function evaluateManifestHealth(
 
   let manifestHealth: ManifestHealth;
 
-  if (driftBad && manifestUnhealthyAgeMs >= MANIFEST_UNHEALTHY_HOLD_MS) {
+  if (realignTrigger && manifestUnhealthyAgeMs >= MANIFEST_UNHEALTHY_HOLD_MS) {
     manifestHealth = 'REALIGN_REQUIRED';
     reasons.push(
       `unhealthyAgeMs ${Math.round(manifestUnhealthyAgeMs)} > ${MANIFEST_UNHEALTHY_HOLD_MS}`,
     );
-  } else if (driftWarn || driftBad || reasons.length > 0) {
+  } else if (positionWarn || positionBad || rotationWarn || rotationBad || reasons.length > 0) {
     manifestHealth = 'WAVERING';
   } else {
     manifestHealth = 'HEALTHY';
